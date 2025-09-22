@@ -4,7 +4,7 @@
 import { cookies } from "next/headers";
 import { NextResponse } from "next/server";
 
-const API_URL = process.env.NEXT_PUBLIC_API_URL!;
+const API_URL = process.env.NEXT_PUBLIC_API_BASE_URL!;
 const COOKIE_NAME = process.env.AUTH_COOKIE_NAME || "accessToken";
 
 export async function GET() {

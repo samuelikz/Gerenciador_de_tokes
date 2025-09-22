@@ -2,7 +2,7 @@
 import { cookies } from "next/headers"
 import { NextResponse, type NextRequest } from "next/server"
 
-const API_BASE = process.env.NEXT_PUBLIC_API_BASE_URL || "http://localhost:3000"
+const API_BASE = process.env.NEXT_PUBLIC_API_BASE_URL || "http://localhost:3011"
 const AUTH_COOKIE = process.env.AUTH_COOKIE_NAME || "accessToken"
 
 // GET: lista tokens
