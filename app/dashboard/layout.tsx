@@ -4,20 +4,29 @@ import { AppSidebar } from "@/components/app-sidebar"
 import { SiteHeader } from "@/components/site-header"
 import { SidebarInset } from "@/components/ui/sidebar"
 import { ClientShell } from "./client-shell"
-import { RoleProvider } from "@/components/auth/role-context" // 👈
+import { RoleProvider } from "@/components/auth/role-context"
 
-function parseJwt<T = any>(token: string): T | null {
+type Claims = { name?: string; email?: string; role?: "ADMIN" | "USER" }
+
+function parseJwt<T>(token: string): T | null {
   try {
     const [, payload] = token.split(".")
-    return JSON.parse(Buffer.from(payload, "base64").toString("utf8")) as T
-  } catch { return null }
+    const json = Buffer.from(payload, "base64").toString("utf8")
+    return JSON.parse(json) as T
+  } catch {
+    return null
+  }
 }
 
-export default async function DashboardLayout({ children }: { children: React.ReactNode }) {
+export default async function DashboardLayout({
+  children,
+}: {
+  children: React.ReactNode
+}) {
   const cookieStore = await cookies()
   const token = cookieStore.get(process.env.AUTH_COOKIE_NAME || "accessToken")?.value
-  const claims = token ? parseJwt<{ name?: string; email?: string; role?: string }>(token) : null
-  const role = (claims?.role as "ADMIN" | "USER" | undefined) ?? ""
+  const claims = token ? parseJwt<Claims>(token) : null
+  const role: "ADMIN" | "USER" | "" = claims?.role ?? ""
 
   return (
     <ClientShell>

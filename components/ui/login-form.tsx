@@ -10,6 +10,14 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import Image from "next/image";
 
+type LoginResp = { success?: boolean; message?: string };
+
+function getErrorMessage(err: unknown, fallback = "Falha no login"): string {
+  if (err instanceof Error) return err.message;
+  if (typeof err === "string") return err;
+  return fallback;
+}
+
 export function LoginForm({ className, ...props }: React.ComponentProps<"div">) {
   const router = useRouter();
   const [email, setEmail] = React.useState("");
@@ -26,18 +34,18 @@ export function LoginForm({ className, ...props }: React.ComponentProps<"div">) 
         body: JSON.stringify({ email, password }),
       });
 
-      const body = await res.json().catch(() => ({}));
+      const body = (await res.json().catch(() => ({}))) as LoginResp;
       if (!res.ok || body?.success === false) {
         const msg = body?.message || "Falha no login";
-        toast.error(msg);                // ❌ mostra erro no topo-direito
+        toast.error(msg);
         return;
       }
 
-      toast.success("Login efetuado com sucesso!"); // ✅ sucesso
+      toast.success("Login efetuado com sucesso!");
       router.replace("/dashboard");
       router.refresh();
-    } catch (err: any) {
-      toast.error(err?.message || "Falha no login");
+    } catch (err: unknown) {
+      toast.error(getErrorMessage(err));
     } finally {
       setLoading(false);
     }
@@ -45,14 +53,13 @@ export function LoginForm({ className, ...props }: React.ComponentProps<"div">) 
 
   return (
     <div className={cn("flex flex-col gap-9", className)} {...props}>
-      <Card className="overflow-hidden p-0 shadow-lg md:rounded-lg md:border md:shadow-none h-[350px]">
+      <Card className="h-[350px] overflow-hidden p-0 shadow-lg md:rounded-lg md:border md:shadow-none">
         <CardContent className="grid p-0 md:grid-cols-2">
           <form className="p-6 md:p-8" onSubmit={onSubmit} noValidate>
-            {/* noValidate evita mensagens nativas do navegador */}
             <div className="flex flex-col gap-6">
               <div className="flex flex-col items-center text-center">
                 <h1 className="text-2xl font-bold">Acesso restrito</h1>
-                <p className="text-muted-foreground text-balance">
+                <p className="text-balance text-muted-foreground">
                   Faça login com sua conta de acesso.
                 </p>
               </div>
@@ -85,7 +92,7 @@ export function LoginForm({ className, ...props }: React.ComponentProps<"div">) 
                 />
               </div>
 
-              <Button type="submit" className="w-full mt-3" disabled={loading}>
+              <Button type="submit" className="mt-3 w-full" disabled={loading}>
                 {loading ? "Entrando..." : "Entrar"}
               </Button>
             </div>
@@ -96,15 +103,16 @@ export function LoginForm({ className, ...props }: React.ComponentProps<"div">) 
               src="/logo.png"
               alt="Fill"
               fill
-              className="object-fill"
               priority
+              className="object-fill"
+              sizes="(max-width: 768px) 0, (min-width: 769px) 50vw"
             />
           </div>
         </CardContent>
       </Card>
 
-      <div className="text-muted-foreground *:[a]:hover:text-primary text-center text-xs text-balance *:[a]:underline *:[a]:underline-offset-4">
-        <p className="text-sm text-muted-foreground text-center">
+      <div className="text-balance text-center text-xs text-muted-foreground *:[a]:underline *:[a]:underline-offset-4 *:[a]:hover:text-primary">
+        <p className="text-center text-sm text-muted-foreground">
           Não conseguiu acessar sua conta?{" "}
           <a href="mailto:suportesiga@perpart.com.br" className="font-medium">
             Entre em contato com o suporte

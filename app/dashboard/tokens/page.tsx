@@ -3,7 +3,7 @@
 
 import * as React from "react"
 import { toast } from "sonner"
-import { useRole } from "@/components/auth/role-context" // 👈 pega a role do layout
+import { useRole } from "@/components/auth/role-context"
 
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
@@ -43,12 +43,19 @@ type ApiToken = {
   ownerEmail: string | null
 }
 
+type ApiErrorShape = { error?: { message?: string } } | { message?: string } | Record<string, unknown>
+
+type ListResp = {
+  success?: boolean
+  data?: ApiToken[]
+} & ApiErrorShape
+
 type CreateResp = {
   success?: boolean
   data?: { token: ApiToken; apiKey: string }
   token?: ApiToken
   apiKey?: string
-}
+} & ApiErrorShape
 
 function fmtDate(d?: string | null) {
   if (!d) return "—"
@@ -57,9 +64,35 @@ function fmtDate(d?: string | null) {
       .format(new Date(d))
   } catch { return d ?? "—" }
 }
+
 const isAtivo = (t: ApiToken) => !!(t.isActive && !t.revokedAt)
 const toMs = (d?: string | null) => (d ? new Date(d).getTime() : 0)
 const toIsoZ = (dateStr?: string) => (dateStr ? `${dateStr}T00:00:00.000Z` : null)
+
+function getErrorMessage(err: unknown, fallback = "Ocorreu um erro"): string {
+  if (err instanceof Error) return err.message
+  if (typeof err === "string") return err
+  return fallback
+}
+
+async function readJson<T>(res: Response): Promise<T | null> {
+  try {
+    return (await res.json()) as T
+  } catch {
+    return null
+  }
+}
+
+function extractApiMessage(body: unknown): string | null {
+  if (body && typeof body === "object") {
+    const maybe = body as Record<string, unknown>
+    const nested = maybe.error as { message?: string } | undefined
+    if (nested?.message) return nested.message
+    const msg = maybe.message
+    if (typeof msg === "string") return msg
+  }
+  return null
+}
 
 export default function TokensPage() {
   const role = useRole()
@@ -87,14 +120,14 @@ export default function TokensPage() {
     setLoading(true)
     try {
       const res = await fetch("/api/tokens", { method: "GET", cache: "no-store" })
-      const body = await res.json().catch(() => ({}))
+      const body = await readJson<ListResp>(res)
       if (!res.ok || body?.success === false) {
-        throw new Error(body?.error?.message || "Falha ao carregar tokens")
+        throw new Error(extractApiMessage(body) ?? "Falha ao carregar tokens")
       }
       setItems(body?.data ?? [])
       setLoaded(true)
-    } catch (err: any) {
-      toast.error(err?.message || "Erro ao buscar tokens")
+    } catch (err: unknown) {
+      toast.error(getErrorMessage(err, "Erro ao buscar tokens"))
     } finally {
       setLoading(false)
     }
@@ -133,14 +166,14 @@ export default function TokensPage() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ tokenId }),
       })
-      const body = await res.json().catch(() => ({}))
+      const body = await readJson<ApiErrorShape & { success?: boolean }>(res)
       if (!res.ok || body?.success === false) {
-        throw new Error(body?.error?.message || "Falha ao revogar token")
+        throw new Error(extractApiMessage(body) ?? "Falha ao revogar token")
       }
       toast.success("Token revogado")
       await load()
-    } catch (err: any) {
-      toast.error(err?.message || "Erro ao revogar")
+    } catch (err: unknown) {
+      toast.error(getErrorMessage(err, "Erro ao revogar"))
     }
   }
 
@@ -149,9 +182,7 @@ export default function TokensPage() {
     try {
       setCreating(true)
 
-      // defesa extra no payload
       const finalScope = isAdmin ? scope : "READ"
-
       const payload = {
         scope: finalScope,
         expiresAt: toIsoZ(expiresDate),
@@ -163,15 +194,13 @@ export default function TokensPage() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(payload),
       })
-      const body: CreateResp = await res.json().catch(() => ({} as any))
-      if (!res.ok) {
-        const msg = (body as any)?.error?.message || "Não foi possível criar o token"
-        throw new Error(msg)
+      const body = await readJson<CreateResp>(res)
+      if (!res.ok || !body) {
+        throw new Error(extractApiMessage(body) ?? "Não foi possível criar o token")
       }
 
-      // { success:true, data:{ token, apiKey } }
-      const apiKeyFromData = body?.data?.apiKey ?? body?.apiKey ?? ""
-      const tokenObj = body?.data?.token ?? body?.token
+      const apiKeyFromData = body.data?.apiKey ?? body.apiKey ?? ""
+      const tokenObj = body.data?.token ?? body.token
 
       setApiKey(String(apiKeyFromData || ""))
       setCreatedPayload(
@@ -186,8 +215,8 @@ export default function TokensPage() {
       setDescription("")
 
       await load()
-    } catch (err: any) {
-      toast.error(err?.message || "Erro ao criar token")
+    } catch (err: unknown) {
+      toast.error(getErrorMessage(err, "Erro ao criar token"))
     } finally {
       setCreating(false)
     }
@@ -258,7 +287,6 @@ export default function TokensPage() {
                       </SelectContent>
                     </Select>
                   ) : (
-                    // usuário comum: travado em READ
                     <Select value="READ" onValueChange={() => {}} disabled>
                       <SelectTrigger id="scope">
                         <SelectValue />
