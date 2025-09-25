@@ -1,4 +1,3 @@
-// app/dashboard/tokens/page.tsx
 "use client"
 
 import * as React from "react"
@@ -47,7 +46,8 @@ type ApiErrorShape = { error?: { message?: string } } | { message?: string } | R
 
 type ListResp = {
   success?: boolean
-  data?: ApiToken[]
+  data?: ApiToken[]    // mantém compat
+  items?: ApiToken[]   // backend envia items
 } & ApiErrorShape
 
 type CreateResp = {
@@ -57,17 +57,38 @@ type CreateResp = {
   apiKey?: string
 } & ApiErrorShape
 
-function fmtDate(d?: string | null) {
-  if (!d) return "—"
+// fmtDate seguro: nunca retorna objetos; só string
+function fmtDate(d?: unknown) {
+  if (d == null) return "—"
+
+  let dt: Date
+  if (typeof d === "string" || typeof d === "number") {
+    dt = new Date(d)
+  } else if (d instanceof Date) {
+    dt = d
+  } else if (typeof (d as any)?.toString === "function") {
+    dt = new Date((d as any).toString())
+  } else {
+    return "—"
+  }
+
+  if (Number.isNaN(dt.getTime())) return "—"
   try {
-    return new Intl.DateTimeFormat("pt-BR", { dateStyle: "short", timeStyle: "short" })
-      .format(new Date(d))
-  } catch { return d ?? "—" }
+    return new Intl.DateTimeFormat("pt-BR", { dateStyle: "short", timeStyle: "short" }).format(dt)
+  } catch {
+    return "—"
+  }
 }
 
 const isAtivo = (t: ApiToken) => !!(t.isActive && !t.revokedAt)
 const toMs = (d?: string | null) => (d ? new Date(d).getTime() : 0)
-const toIsoZ = (dateStr?: string) => (dateStr ? `${dateStr}T00:00:00.000Z` : null)
+
+// Usa FIM do dia (23:59:59.999Z) para aceitar “hoje”
+const toIsoZ = (dateStr?: string) => {
+  if (!dateStr) return null
+  const d = new Date(`${dateStr}T23:59:59.999Z`)
+  return d.toISOString()
+}
 
 function getErrorMessage(err: unknown, fallback = "Ocorreu um erro"): string {
   if (err instanceof Error) return err.message
@@ -116,15 +137,35 @@ export default function TokensPage() {
   const [apiKey, setApiKey] = React.useState<string>("")
   const [createdPayload, setCreatedPayload] = React.useState<{ token: ApiToken; apiKey: string } | null>(null)
 
+  // hoje (AAAA-MM-DD) para bloquear datas passadas no input
+  const todayStr = React.useMemo(() => new Date().toISOString().slice(0, 10), [])
+
   const load = React.useCallback(async () => {
     setLoading(true)
     try {
       const res = await fetch("/api/tokens", { method: "GET", cache: "no-store" })
       const body = await readJson<ListResp>(res)
+
       if (!res.ok || body?.success === false) {
         throw new Error(extractApiMessage(body) ?? "Falha ao carregar tokens")
       }
-      setItems(body?.data ?? [])
+
+      // aceita { data } OU { items }
+      const list: ApiToken[] = Array.isArray(body?.data)
+        ? body!.data!
+        : Array.isArray(body?.items)
+        ? body!.items!
+        : []
+
+      // normaliza campos de data para string|null
+      const norm = list.map((t) => ({
+        ...t,
+        createdAt: typeof t.createdAt === "string" ? t.createdAt : null,
+        expiresAt: typeof t.expiresAt === "string" ? t.expiresAt : null,
+        revokedAt: typeof t.revokedAt === "string" ? t.revokedAt : null,
+      })) as ApiToken[]
+
+      setItems(norm)
       setLoaded(true)
     } catch (err: unknown) {
       toast.error(getErrorMessage(err, "Erro ao buscar tokens"))
@@ -132,6 +173,7 @@ export default function TokensPage() {
       setLoading(false)
     }
   }, [])
+
   React.useEffect(() => { load() }, [load])
 
   const filtered = React.useMemo(() => {
@@ -141,6 +183,8 @@ export default function TokensPage() {
       (t.description ?? "").toLowerCase().includes(q) ||
       (t.ownerEmail ?? "").toLowerCase().includes(q) ||
       (t.ownerName ?? "").toLowerCase().includes(q) ||
+      (t.createdByName ?? "").toLowerCase().includes(q) ||
+      (t.createdByEmail ?? "").toLowerCase().includes(q) ||
       (t.scope ?? "").toLowerCase().includes(q)
     )
   }, [items, query])
@@ -181,6 +225,18 @@ export default function TokensPage() {
     e.preventDefault()
     try {
       setCreating(true)
+
+      // Validação: não permitir passado (se informado)
+      if (expiresDate) {
+        const picked = new Date(`${expiresDate}T00:00:00`)
+        const now = new Date()
+        const today = new Date(now.getFullYear(), now.getMonth(), now.getDate())
+        if (picked < today) {
+          toast.error("A data de expiração não pode ser no passado.")
+          setCreating(false)
+          return
+        }
+      }
 
       const finalScope = isAdmin ? scope : "READ"
       const payload = {
@@ -304,6 +360,7 @@ export default function TokensPage() {
                     id="expires"
                     type="date"
                     value={expiresDate}
+                    min={todayStr} // impede selecionar passado
                     onChange={(e) => setExpiresDate(e.target.value)}
                   />
                 </div>
@@ -397,7 +454,8 @@ export default function TokensPage() {
                     return (
                       <TableRow key={t.id}>
                         <TableCell className="font-medium">{t.description || "—"}</TableCell>
-                        <TableCell className="hidden md:table-cell">{t.ownerName || "—"}</TableCell>
+                        {/* Fallback para email caso não haja nome */}
+                        <TableCell className="hidden md:table-cell">{t.ownerName || t.ownerEmail || "—"}</TableCell>
                         <TableCell className="hidden xl:table-cell">{t.ownerEmail || "—"}</TableCell>
                         <TableCell className="hidden md:table-cell">{fmtDate(t.createdAt)}</TableCell>
                         <TableCell className="hidden md:table-cell">{fmtDate(t.expiresAt)}</TableCell>

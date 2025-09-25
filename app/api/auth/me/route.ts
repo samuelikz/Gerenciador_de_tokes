@@ -17,7 +17,7 @@ export async function GET() {
   }
 
   // Chama sua API Nest para obter o usuário atual
-  const res = await fetch(`${API_URL}/me`, {
+  const res = await fetch(`${API_URL}/users/me`, {
     headers: { Authorization: `Bearer ${token}` },
     cache: "no-store",
   });

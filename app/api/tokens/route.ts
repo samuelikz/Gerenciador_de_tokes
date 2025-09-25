@@ -1,90 +1,73 @@
-// app/api/tokens/route.ts
-import { cookies } from "next/headers"
-import { NextResponse, type NextRequest } from "next/server"
+export const dynamic = "force-dynamic";
+export const revalidate = 0;
+export const runtime = "nodejs";
 
-const API_BASE = process.env.NEXT_PUBLIC_API_BASE_URL || "http://localhost:3011"
-const AUTH_COOKIE = process.env.AUTH_COOKIE_NAME || "accessToken"
+import { NextResponse, type NextRequest } from "next/server";
+import { cookies } from "next/headers";
 
-// GET: lista tokens
+const API_BASE = process.env.NEXT_PUBLIC_API_BASE_URL || "http://localhost:3333";
+const AUTH_COOKIE = process.env.AUTH_COOKIE_NAME || "accessToken";
+
 export async function GET() {
-  const token = (await cookies()).get(AUTH_COOKIE)?.value
+  const token = (await cookies()).get(AUTH_COOKIE)?.value;
   if (!token) {
-    return NextResponse.json(
-      { success: false, error: { message: "Não autenticado" } },
-      { status: 401 }
-    )
+    return NextResponse.json({ success: false, error: { message: "Não autenticado" } }, { status: 401 });
   }
 
   const resp = await fetch(`${API_BASE}/tokens`, {
-    headers: {
-      Authorization: `Bearer ${token}`,
-      "Content-Type": "application/json",
-    },
+    headers: { Authorization: `Bearer ${token}`, Accept: "application/json" },
     cache: "no-store",
-  })
-  const body = await resp.json().catch(() => ({}))
-  return NextResponse.json(body, { status: resp.status })
+  });
+
+  let body: any = {};
+  try { body = await resp.json(); } catch {}
+
+  // backend: { meta, items }. Normaliza para { success, data }
+  const items = Array.isArray(body?.items) ? body.items : [];
+  return NextResponse.json({ success: resp.ok, data: items }, { status: resp.status });
 }
 
-// POST: cria token
 export async function POST(req: NextRequest) {
-  const token = (await cookies()).get(AUTH_COOKIE)?.value
+  const token = (await cookies()).get(AUTH_COOKIE)?.value;
   if (!token) {
-    return NextResponse.json(
-      { success: false, error: { message: "Não autenticado" } },
-      { status: 401 }
-    )
+    return NextResponse.json({ success: false, error: { message: "Não autenticado" } }, { status: 401 });
   }
 
-  const json = (await req.json().catch(() => null)) as
-    | { scope?: string; expiresAt?: string | null; description?: string | null }
-    | null
-
+  const json = await req.json().catch(() => null);
   if (!json?.scope) {
-    return NextResponse.json(
-      { success: false, error: { message: "scope é obrigatório" } },
-      { status: 400 }
-    )
+    return NextResponse.json({ success: false, error: { message: "scope é obrigatório" } }, { status: 400 });
   }
 
   const resp = await fetch(`${API_BASE}/tokens`, {
     method: "POST",
-    headers: {
-      Authorization: `Bearer ${token}`,
-      "Content-Type": "application/json",
-    },
+    headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json", Accept: "application/json" },
     body: JSON.stringify(json),
-  })
-  const body = await resp.json().catch(() => ({}))
-  return NextResponse.json(body, { status: resp.status })
+  });
+
+  let body: any = {};
+  try { body = await resp.json(); } catch {}
+  // repassa como { success, ...body }
+  return NextResponse.json({ success: resp.ok, ...body }, { status: resp.status });
 }
 
-// DELETE: revoga token
 export async function DELETE(req: NextRequest) {
-  const token = (await cookies()).get(AUTH_COOKIE)?.value
+  const token = (await cookies()).get(AUTH_COOKIE)?.value;
   if (!token) {
-    return NextResponse.json(
-      { success: false, error: { message: "Não autenticado" } },
-      { status: 401 }
-    )
+    return NextResponse.json({ success: false, error: { message: "Não autenticado" } }, { status: 401 });
   }
 
-  const json = (await req.json().catch(() => null)) as { tokenId?: string } | null
+  const json = await req.json().catch(() => null);
   if (!json?.tokenId) {
-    return NextResponse.json(
-      { success: false, error: { message: "tokenId obrigatório" } },
-      { status: 400 }
-    )
+    return NextResponse.json({ success: false, error: { message: "tokenId obrigatório" } }, { status: 400 });
   }
 
   const resp = await fetch(`${API_BASE}/tokens`, {
     method: "DELETE",
-    headers: {
-      Authorization: `Bearer ${token}`,
-      "Content-Type": "application/json",
-    },
+    headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json", Accept: "application/json" },
     body: JSON.stringify({ tokenId: json.tokenId }),
-  })
-  const body = await resp.json().catch(() => ({}))
-  return NextResponse.json(body, { status: resp.status })
+  });
+
+  let body: any = {};
+  try { body = await resp.json(); } catch {}
+  return NextResponse.json({ success: resp.ok, ...body }, { status: resp.status });
 }

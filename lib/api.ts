@@ -1,26 +1,24 @@
-export const API_URL = process.env.NEXT_PUBLIC_API_URL as string;
+// app/api/_lib/apiFetch.ts
+import { cookies } from "next/headers";
 
-type FetchOptions = RequestInit & { auth?: boolean };
+const API_BASE = process.env.NEXT_PUBLIC_API_BASE_URL || "http://localhost:3333";
+const AUTH_COOKIE = process.env.AUTH_COOKIE_NAME || "accessToken";
 
-export async function api(path: string, options: FetchOptions = {}) {
-  const url = `${API_URL}${path}`;
-  const headers = new Headers(options.headers || {});
-  if (!headers.has("Content-Type")) headers.set("Content-Type", "application/json");
-
-  // inclui cookies (para HttpOnly definidos pelo backend)
-  const res = await fetch(url, {
-    ...options,
-    headers,
-    credentials: "include",
-    cache: "no-store",
-  });
-
-  const ct = res.headers.get("Content-Type") || "";
-  const body = ct.includes("application/json") ? await res.json() : await res.text();
-
-  if (!res.ok) {
-    const msg = typeof body === "string" ? body : body?.message || body?.error || res.statusText;
-    throw new Error(msg);
+export async function apiFetch(path: string, init: RequestInit = {}) {
+  const jar = await cookies();
+  const token = jar.get(AUTH_COOKIE)?.value;
+  if (!token) {
+    return new Response(JSON.stringify({ success:false, error:{ message:"Não autenticado" } }), { status: 401 });
   }
-  return body;
+
+  const headers = new Headers(init.headers);
+  if (!headers.has("Authorization")) headers.set("Authorization", `Bearer ${token}`);
+  if (!headers.has("Accept")) headers.set("Accept", "application/json");
+
+  const res = await fetch(`${API_BASE}${path}`, { ...init, headers, cache: "no-store" });
+
+  let data: any = null;
+  try { data = await res.json(); } catch { data = { raw: await res.text().catch(() => "") }; }
+
+  return new Response(JSON.stringify(data), { status: res.status });
 }
