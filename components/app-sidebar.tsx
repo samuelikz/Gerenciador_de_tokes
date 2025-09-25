@@ -48,7 +48,10 @@ const base = {
   ] as NavItem[],
 
   documents: [
-    { name: "Documentação API", url: "#", icon: IconFileText },
+    // 👇 novo item “Documentos” levando para a página estática
+    { name: "Playground", url: "/dashboard/documentos", icon: IconFileText },
+    // você pode manter outros links estáticos aqui também
+    // { name: "Documentação API", url: "#", icon: IconFileText },
   ] as DocItem[],
 }
 
