@@ -1,207 +1,288 @@
-"use client"
+"use client";
 
-import * as React from "react"
-import { toast } from "sonner"
-import { useRole } from "@/components/auth/role-context"
+import * as React from "react";
+import { toast } from "sonner";
+import { useRole } from "@/components/auth/role-context";
 
-import { Button } from "@/components/ui/button"
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
-import { Input } from "@/components/ui/input"
-import { Badge } from "@/components/ui/badge"
-import { Label } from "@/components/ui/label"
+import { Button } from "@/components/ui/button";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Input } from "@/components/ui/input";
+import { Badge } from "@/components/ui/badge";
+import { Label } from "@/components/ui/label";
 import {
-  Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
-} from "@/components/ui/table"
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
 import {
-  DropdownMenu, DropdownMenuTrigger, DropdownMenuContent,
-  DropdownMenuItem, DropdownMenuSeparator,
-} from "@/components/ui/dropdown-menu"
+  DropdownMenu,
+  DropdownMenuTrigger,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+} from "@/components/ui/dropdown-menu";
 import {
-  Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogTrigger,
-} from "@/components/ui/dialog"
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogFooter,
+  DialogTrigger,
+} from "@/components/ui/dialog";
 import {
-  Select, SelectTrigger, SelectContent, SelectItem, SelectValue,
-} from "@/components/ui/select"
+  Select,
+  SelectTrigger,
+  SelectContent,
+  SelectItem,
+  SelectValue,
+} from "@/components/ui/select";
 import {
-  IconPlus, IconSearch, IconReload, IconDotsVertical, IconDownload, IconClipboard
-} from "@tabler/icons-react"
+  IconPlus,
+  IconSearch,
+  IconReload,
+  IconDotsVertical,
+  IconDownload,
+  IconClipboard,
+} from "@tabler/icons-react";
+import { fetchMe, type MeData, type MeResponse } from "@/lib/me";
 
 type ApiToken = {
-  id: string
-  userId: string
-  createdByUserId: string
-  scope: string
-  isActive: boolean
-  expiresAt: string | null
-  createdAt: string
-  revokedAt: string | null
-  description: string | null
-  createdByName: string | null
-  createdByEmail: string | null
-  ownerName: string | null
-  ownerEmail: string | null
-}
+  id: string;
+  userId: string;
+  createdByUserId: string;
+  scope: string;
+  isActive: boolean;
+  expiresAt: string | null;
+  createdAt: string;
+  revokedAt: string | null;
+  description: string | null;
+  createdByName: string | null;
+  createdByEmail: string | null;
+  ownerName: string | null;
+  ownerEmail: string | null;
+};
 
-type ApiErrorShape = { error?: { message?: string } } | { message?: string } | Record<string, unknown>
+type ApiErrorShape =
+  | { error?: { message?: string } }
+  | { message?: string }
+  | Record<string, unknown>;
 
 type ListResp = {
-  success?: boolean
-  data?: ApiToken[]    // mantém compat
-  items?: ApiToken[]   // backend envia items
-} & ApiErrorShape
+  success?: boolean;
+  data?: ApiToken[]; // mantém compat
+  items?: ApiToken[]; // backend envia items
+} & ApiErrorShape;
 
 type CreateResp = {
-  success?: boolean
-  data?: { token: ApiToken; apiKey: string }
-  token?: ApiToken
-  apiKey?: string
-} & ApiErrorShape
+  success?: boolean;
+  data?: { token: ApiToken; apiKey: string };
+  token?: ApiToken;
+  apiKey?: string;
+} & ApiErrorShape;
 
 // fmtDate seguro: nunca retorna objetos; só string
 function fmtDate(d?: unknown) {
-  if (d == null) return "—"
+  if (d == null) return "—";
 
-  let dt: Date
+  let dt: Date;
   if (typeof d === "string" || typeof d === "number") {
-    dt = new Date(d)
+    dt = new Date(d);
   } else if (d instanceof Date) {
-    dt = d
+    dt = d;
   } else if (typeof (d as any)?.toString === "function") {
-    dt = new Date((d as any).toString())
+    dt = new Date((d as any).toString());
   } else {
-    return "—"
+    return "—";
   }
 
-  if (Number.isNaN(dt.getTime())) return "—"
+  if (Number.isNaN(dt.getTime())) return "—";
   try {
-    return new Intl.DateTimeFormat("pt-BR", { dateStyle: "short", timeStyle: "short" }).format(dt)
+    return new Intl.DateTimeFormat("pt-BR", {
+      dateStyle: "short",
+      timeStyle: "short",
+    }).format(dt);
   } catch {
-    return "—"
+    return "—";
   }
 }
 
-const isAtivo = (t: ApiToken) => !!(t.isActive && !t.revokedAt)
-const toMs = (d?: string | null) => (d ? new Date(d).getTime() : 0)
+const isAtivo = (t: ApiToken) => !!(t.isActive && !t.revokedAt);
+const toMs = (d?: string | null) => (d ? new Date(d).getTime() : 0);
 
 // Usa FIM do dia (23:59:59.999Z) para aceitar “hoje”
 const toIsoZ = (dateStr?: string) => {
-  if (!dateStr) return null
-  const d = new Date(`${dateStr}T23:59:59.999Z`)
-  return d.toISOString()
-}
+  if (!dateStr) return null;
+  const d = new Date(`${dateStr}T23:59:59.999Z`);
+  return d.toISOString();
+};
 
 function getErrorMessage(err: unknown, fallback = "Ocorreu um erro"): string {
-  if (err instanceof Error) return err.message
-  if (typeof err === "string") return err
-  return fallback
+  if (err instanceof Error) return err.message;
+  if (typeof err === "string") return err;
+  return fallback;
 }
 
 async function readJson<T>(res: Response): Promise<T | null> {
   try {
-    return (await res.json()) as T
+    return (await res.json()) as T;
   } catch {
-    return null
+    return null;
   }
 }
 
 function extractApiMessage(body: unknown): string | null {
   if (body && typeof body === "object") {
-    const maybe = body as Record<string, unknown>
-    const nested = maybe.error as { message?: string } | undefined
-    if (nested?.message) return nested.message
-    const msg = maybe.message
-    if (typeof msg === "string") return msg
+    const maybe = body as Record<string, unknown>;
+    const nested = maybe.error as { message?: string } | undefined;
+    if (nested?.message) return nested.message;
+    const msg = maybe.message;
+    if (typeof msg === "string") return msg;
   }
-  return null
+  return null;
 }
 
 export default function TokensPage() {
-  const role = useRole()
-  const isAdmin = role === "ADMIN"
+  const role = useRole();
+  const isAdmin = role === "ADMIN";
 
   // tabela
-  const [query, setQuery] = React.useState("")
-  const [loading, setLoading] = React.useState(false)
-  const [items, setItems] = React.useState<ApiToken[]>([])
-  const [loaded, setLoaded] = React.useState(false)
+  const [query, setQuery] = React.useState("");
+  const [loading, setLoading] = React.useState(false);
+  const [myTokens, setMyTokens] = React.useState<ApiToken[]>([]);
+  const [othersTokens, setOthersTokens] = React.useState<ApiToken[]>([]);
+  const [loadingMine, setLoadingMine] = React.useState(false);
+  const [loadingOthers, setLoadingOthers] = React.useState(false);
+  const [loaded, setLoaded] = React.useState(false);
 
   // criar
-  const [openCreate, setOpenCreate] = React.useState(false)
-  const [creating, setCreating] = React.useState(false)
-  const [scope, setScope] = React.useState<string>("READ")
-  const [expiresDate, setExpiresDate] = React.useState<string>("")
-  const [description, setDescription] = React.useState<string>("")
+  const [openCreate, setOpenCreate] = React.useState(false);
+  const [creating, setCreating] = React.useState(false);
+  const [scope, setScope] = React.useState<string>("READ");
+  const [expiresDate, setExpiresDate] = React.useState<string>("");
+  const [description, setDescription] = React.useState<string>("");
 
   // resultado
-  const [openResult, setOpenResult] = React.useState(false)
-  const [apiKey, setApiKey] = React.useState<string>("")
-  const [createdPayload, setCreatedPayload] = React.useState<{ token: ApiToken; apiKey: string } | null>(null)
+  const [openResult, setOpenResult] = React.useState(false);
+  const [apiKey, setApiKey] = React.useState<string>("");
+  const [createdPayload, setCreatedPayload] = React.useState<{
+    token: ApiToken;
+    apiKey: string;
+  } | null>(null);
 
   // hoje (AAAA-MM-DD) para bloquear datas passadas no input
-  const todayStr = React.useMemo(() => new Date().toISOString().slice(0, 10), [])
+  const todayStr = React.useMemo(
+    () => new Date().toISOString().slice(0, 10),
+    []
+  );
 
   const load = React.useCallback(async () => {
-    setLoading(true)
-    try {
-      const res = await fetch("/api/tokens", { method: "GET", cache: "no-store" })
-      const body = await readJson<ListResp>(res)
+    setLoadingMine(true);
+    const res = await fetch("/api/tokens/", {
+      method: "GET",
+      cache: "no-store",
+    });
+    const body = await readJson<ListResp>(res);
 
-      if (!res.ok || body?.success === false) {
-        throw new Error(extractApiMessage(body) ?? "Falha ao carregar tokens")
-      }
-
-      // aceita { data } OU { items }
-      const list: ApiToken[] = Array.isArray(body?.data)
-        ? body!.data!
-        : Array.isArray(body?.items)
-        ? body!.items!
-        : []
-
-      // normaliza campos de data para string|null
-      const norm = list.map((t) => ({
-        ...t,
-        createdAt: typeof t.createdAt === "string" ? t.createdAt : null,
-        expiresAt: typeof t.expiresAt === "string" ? t.expiresAt : null,
-        revokedAt: typeof t.revokedAt === "string" ? t.revokedAt : null,
-      })) as ApiToken[]
-
-      setItems(norm)
-      setLoaded(true)
-    } catch (err: unknown) {
-      toast.error(getErrorMessage(err, "Erro ao buscar tokens"))
-    } finally {
-      setLoading(false)
+    if (!res.ok || body?.success === false) {
+      throw new Error(extractApiMessage(body) ?? "Falha ao carregar tokens");
     }
-  }, [])
 
-  React.useEffect(() => { load() }, [load])
+    // aceita { data } OU { items }
+    const list: ApiToken[] = Array.isArray(body?.data)
+      ? body!.data!
+      : Array.isArray(body?.items)
+      ? body!.items!
+      : [];
 
-  const filtered = React.useMemo(() => {
-    if (!query.trim()) return items
-    const q = query.toLowerCase()
-    return items.filter((t) =>
-      (t.description ?? "").toLowerCase().includes(q) ||
-      (t.ownerEmail ?? "").toLowerCase().includes(q) ||
-      (t.ownerName ?? "").toLowerCase().includes(q) ||
-      (t.createdByName ?? "").toLowerCase().includes(q) ||
-      (t.createdByEmail ?? "").toLowerCase().includes(q) ||
-      (t.scope ?? "").toLowerCase().includes(q)
-    )
-  }, [items, query])
+    // normaliza campos de data para string|null
+    const norm = list.map((t) => ({
+      ...t,
+      createdAt: typeof t.createdAt === "string" ? t.createdAt : null,
+      expiresAt: typeof t.expiresAt === "string" ? t.expiresAt : null,
+      revokedAt: typeof t.revokedAt === "string" ? t.revokedAt : null,
+    })) as ApiToken[];
+    setMyTokens(norm);
+    setLoadingMine(false);
+  }, []);
 
-  const filteredSorted = React.useMemo(() => {
+  const loadAll = React.useCallback(async () => {
+    setLoadingOthers(true);
+    const res = await fetch("/api/tokens/all", {
+      method: "GET",
+      cache: "no-store",
+    });
+    const body = await readJson<ListResp>(res);
+
+    if (!res.ok || body?.success === false) {
+      throw new Error(extractApiMessage(body) ?? "Falha ao carregar tokens");
+    }
+
+    // aceita { data } OU { items }
+    const list: ApiToken[] = Array.isArray(body?.data)
+      ? body!.data!
+      : Array.isArray(body?.items)
+      ? body!.items!
+      : [];
+
+    // normaliza campos de data para string|null
+    const norm = list.map((t) => ({
+      ...t,
+      createdAt: typeof t.createdAt === "string" ? t.createdAt : null,
+      expiresAt: typeof t.expiresAt === "string" ? t.expiresAt : null,
+      revokedAt: typeof t.revokedAt === "string" ? t.revokedAt : null,
+    })) as ApiToken[];
+    setOthersTokens(norm);
+    setLoadingOthers(false);
+  }, []);
+
+  React.useEffect(() => {
+    load();
+    loadAll();
+  }, [load, loadAll]);
+
+  // Função unificada para aplicar a busca e ordenação
+  const applyFilterAndSort = (tokens: ApiToken[], query: string) => {
+    // Lógica de busca (do seu antigo 'filtered')
+    const q = query.trim().toLowerCase();
+    const filtered = q
+      ? tokens.filter(
+          (t) =>
+            (t.description ?? "").toLowerCase().includes(q) ||
+            (t.ownerEmail ?? "").toLowerCase().includes(q) ||
+            (t.ownerName ?? "").toLowerCase().includes(q) ||
+            (t.createdByName ?? "").toLowerCase().includes(q) ||
+            (t.createdByEmail ?? "").toLowerCase().includes(q) ||
+            (t.scope ?? "").toLowerCase().includes(q)
+        )
+      : tokens;
+
+    // Lógica de ordenação (do seu 'filteredSorted')
     return [...filtered].sort((a, b) => {
-      const aa = isAtivo(a) ? 1 : 0
-      const bb = isAtivo(b) ? 1 : 0
-      if (aa !== bb) return bb - aa
-      const ca = toMs(a.createdAt)
-      const cb = toMs(b.createdAt)
-      if (ca !== cb) return cb - ca
-      const ea = toMs(a.expiresAt)
-      const eb = toMs(b.expiresAt)
-      return eb - ea
-    })
-  }, [filtered])
+      const aa = isAtivo(a) ? 1 : 0;
+      const bb = isAtivo(b) ? 1 : 0;
+      if (aa !== bb) return bb - aa;
+      const ca = toMs(a.createdAt);
+      const cb = toMs(b.createdAt);
+      if (ca !== cb) return cb - ca;
+      const ea = toMs(a.expiresAt);
+      const eb = toMs(b.expiresAt);
+      return ea - eb;
+    });
+  };
+
+  // NOVO: Lista final (busca + ordem) para Minhas Criações
+  const finalMyTokens = React.useMemo(() => {
+    return applyFilterAndSort(myTokens, query);
+  }, [myTokens, query]);
+
+  // NOVO: Lista final (busca + ordem) para Outros Tokens
+  const finalOthersTokens = React.useMemo(() => {
+    return applyFilterAndSort(othersTokens, query);
+  }, [othersTokens, query]);
 
   async function revokeToken(tokenId: string) {
     try {
@@ -209,91 +290,103 @@ export default function TokensPage() {
         method: "DELETE",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ tokenId }),
-      })
-      const body = await readJson<ApiErrorShape & { success?: boolean }>(res)
+      });
+      const body = await readJson<ApiErrorShape & { success?: boolean }>(res);
       if (!res.ok || body?.success === false) {
-        throw new Error(extractApiMessage(body) ?? "Falha ao revogar token")
+        throw new Error(extractApiMessage(body) ?? "Falha ao revogar token");
       }
-      toast.success("Token revogado")
-      await load()
+      toast.success("Token revogado");
+      await load();
     } catch (err: unknown) {
-      toast.error(getErrorMessage(err, "Erro ao revogar"))
+      toast.error(getErrorMessage(err, "Erro ao revogar"));
     }
   }
 
   async function createToken(e: React.FormEvent) {
-    e.preventDefault()
+    e.preventDefault();
     try {
-      setCreating(true)
+      setCreating(true);
 
       // Validação: não permitir passado (se informado)
       if (expiresDate) {
-        const picked = new Date(`${expiresDate}T00:00:00`)
-        const now = new Date()
-        const today = new Date(now.getFullYear(), now.getMonth(), now.getDate())
+        const picked = new Date(`${expiresDate}T00:00:00`);
+        const now = new Date();
+        const today = new Date(
+          now.getFullYear(),
+          now.getMonth(),
+          now.getDate()
+        );
         if (picked < today) {
-          toast.error("A data de expiração não pode ser no passado.")
-          setCreating(false)
-          return
+          toast.error("A data de expiração não pode ser no passado.");
+          setCreating(false);
+          return;
         }
       }
 
-      const finalScope = isAdmin ? scope : "READ"
+      const finalScope = isAdmin ? scope : "READ";
       const payload = {
         scope: finalScope,
         expiresAt: toIsoZ(expiresDate),
         description: description || null,
-      }
+      };
 
       const res = await fetch("/api/tokens", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(payload),
-      })
-      const body = await readJson<CreateResp>(res)
+      });
+      const body = await readJson<CreateResp>(res);
       if (!res.ok || !body) {
-        throw new Error(extractApiMessage(body) ?? "Não foi possível criar o token")
+        throw new Error(
+          extractApiMessage(body) ?? "Não foi possível criar o token"
+        );
       }
 
-      const apiKeyFromData = body.data?.apiKey ?? body.apiKey ?? ""
-      const tokenObj = body.data?.token ?? body.token
+      const apiKeyFromData = body.data?.apiKey ?? body.apiKey ?? "";
+      const tokenObj = body.data?.token ?? body.token;
 
-      setApiKey(String(apiKeyFromData || ""))
+      setApiKey(String(apiKeyFromData || ""));
       setCreatedPayload(
-        tokenObj && apiKeyFromData ? { token: tokenObj as ApiToken, apiKey: apiKeyFromData } : null
-      )
+        tokenObj && apiKeyFromData
+          ? { token: tokenObj as ApiToken, apiKey: apiKeyFromData }
+          : null
+      );
 
-      setOpenCreate(false)
-      setOpenResult(true)
+      setOpenCreate(false);
+      setOpenResult(true);
 
-      setScope("READ")
-      setExpiresDate("")
-      setDescription("")
+      setScope("READ");
+      setExpiresDate("");
+      setDescription("");
 
-      await load()
+      await load();
     } catch (err: unknown) {
-      toast.error(getErrorMessage(err, "Erro ao criar token"))
+      toast.error(getErrorMessage(err, "Erro ao criar token"));
     } finally {
-      setCreating(false)
+      setCreating(false);
     }
   }
 
   function copyApiKey() {
-    if (!apiKey) return
-    navigator.clipboard.writeText(apiKey)
-    toast.success("Chave copiada")
+    if (!apiKey) return;
+    navigator.clipboard.writeText(apiKey);
+    toast.success("Chave copiada");
   }
 
   function downloadJson() {
-    const content = JSON.stringify(createdPayload ?? {}, null, 2)
-    const blob = new Blob([content], { type: "application/json;charset=utf-8" })
-    const url = URL.createObjectURL(blob)
-    const a = document.createElement("a")
-    a.href = url
-    const nameFromId = createdPayload?.token?.id ? `token-${createdPayload.token.id}.json` : "token.json"
-    a.download = nameFromId
-    a.click()
-    URL.revokeObjectURL(url)
+    const content = JSON.stringify(createdPayload ?? {}, null, 2);
+    const blob = new Blob([content], {
+      type: "application/json;charset=utf-8",
+    });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    const nameFromId = createdPayload?.token?.id
+      ? `token-${createdPayload.token.id}.json`
+      : "token.json";
+    a.download = nameFromId;
+    a.click();
+    URL.revokeObjectURL(url);
   }
 
   return (
@@ -310,8 +403,16 @@ export default function TokensPage() {
               onChange={(e) => setQuery(e.target.value)}
             />
           </div>
-          <Button variant="outline" size="icon" onClick={load} disabled={loading} className="cursor-pointer">
-            <IconReload className={loading ? "size-4 animate-spin" : "size-4"} />
+          <Button
+            variant="outline"
+            size="icon"
+            onClick={load}
+            disabled={loading}
+            className="cursor-pointer"
+          >
+            <IconReload
+              className={loading ? "size-4 animate-spin" : "size-4"}
+            />
           </Button>
 
           {/* Dialog: criar token */}
@@ -376,10 +477,19 @@ export default function TokensPage() {
                 </div>
 
                 <DialogFooter>
-                  <Button type="button" variant="outline" onClick={() => setOpenCreate(false)} className="cursor-pointer">
+                  <Button
+                    type="button"
+                    variant="outline"
+                    onClick={() => setOpenCreate(false)}
+                    className="cursor-pointer"
+                  >
                     Cancelar
                   </Button>
-                  <Button type="submit" disabled={creating} className="cursor-pointer">
+                  <Button
+                    type="submit"
+                    disabled={creating}
+                    className="cursor-pointer"
+                  >
                     {creating ? "Criando..." : "Criar token"}
                   </Button>
                 </DialogFooter>
@@ -396,7 +506,8 @@ export default function TokensPage() {
 
               <div className="grid gap-3">
                 <p className="text-sm text-muted-foreground">
-                  Guarde esta chave com segurança. Ela pode ser exibida apenas agora.
+                  Guarde esta chave com segurança. Ela pode ser exibida apenas
+                  agora.
                 </p>
 
                 <div className="rounded-md border bg-muted/30 p-3">
@@ -406,11 +517,19 @@ export default function TokensPage() {
                 </div>
 
                 <div className="flex gap-2">
-                  <Button variant="outline" onClick={copyApiKey} className="cursor-pointer">
+                  <Button
+                    variant="outline"
+                    onClick={copyApiKey}
+                    className="cursor-pointer"
+                  >
                     <IconClipboard className="mr-2 size-4" />
                     Copiar token
                   </Button>
-                  <Button variant="outline" onClick={downloadJson} className="cursor-pointer">
+                  <Button
+                    variant="outline"
+                    onClick={downloadJson}
+                    className="cursor-pointer"
+                  >
                     <IconDownload className="mr-2 size-4" />
                     Baixar JSON
                   </Button>
@@ -418,7 +537,10 @@ export default function TokensPage() {
               </div>
 
               <DialogFooter>
-                <Button onClick={() => setOpenResult(false)} className="cursor-pointer">
+                <Button
+                  onClick={() => setOpenResult(false)}
+                  className="cursor-pointer"
+                >
                   Fechar
                 </Button>
               </DialogFooter>
@@ -427,88 +549,256 @@ export default function TokensPage() {
         </div>
       </div>
 
-      <Card>
-        <CardHeader className="pb-2">
-          <CardTitle className="text-base">Lista</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <div className="overflow-hidden rounded-md border">
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Descrição</TableHead>
-                  <TableHead className="hidden md:table-cell">Dono</TableHead>
-                  <TableHead className="hidden xl:table-cell">E-mail do dono</TableHead>
-                  <TableHead className="hidden md:table-cell">Criado em</TableHead>
-                  <TableHead className="hidden md:table-cell">Expira em</TableHead>
-                  <TableHead className="hidden sm:table-cell">Escopo</TableHead>
-                  <TableHead>Status</TableHead>
-                  <TableHead className="w-12"></TableHead>
-                </TableRow>
-              </TableHeader>
+      <Tabs defaultValue="tokensCreateForMe" className="w-full">
+        <TabsList>
+          <TabsTrigger value="tokensCreateForMe">Gerados por mim</TabsTrigger>
+          <TabsTrigger value="tokensCreateforOthers">
+            Gerado por outros
+          </TabsTrigger>
+        </TabsList>
+        <TabsContent value="tokensCreateForMe">
+          <Card>
+            <CardHeader className="pb-2">
+              <CardTitle className="text-base">Lista</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="overflow-hidden rounded-md border">
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>Descrição</TableHead>
+                      <TableHead className="hidden md:table-cell">
+                        Dono
+                      </TableHead>
+                      <TableHead className="hidden xl:table-cell">
+                        E-mail do dono
+                      </TableHead>
+                      <TableHead className="hidden md:table-cell">
+                        Criado em
+                      </TableHead>
+                      <TableHead className="hidden md:table-cell">
+                        Expira em
+                      </TableHead>
+                      <TableHead className="hidden sm:table-cell">
+                        Escopo
+                      </TableHead>
+                      <TableHead>Status</TableHead>
+                      <TableHead className="w-12"></TableHead>
+                    </TableRow>
+                  </TableHeader>
 
-              <TableBody>
-                {filteredSorted.length ? (
-                  filteredSorted.map((t) => {
-                    const ativo = isAtivo(t)
-                    return (
-                      <TableRow key={t.id}>
-                        <TableCell className="font-medium">{t.description || "—"}</TableCell>
-                        {/* Fallback para email caso não haja nome */}
-                        <TableCell className="hidden md:table-cell">{t.ownerName || t.ownerEmail || "—"}</TableCell>
-                        <TableCell className="hidden xl:table-cell">{t.ownerEmail || "—"}</TableCell>
-                        <TableCell className="hidden md:table-cell">{fmtDate(t.createdAt)}</TableCell>
-                        <TableCell className="hidden md:table-cell">{fmtDate(t.expiresAt)}</TableCell>
-                        <TableCell className="hidden sm:table-cell">
-                          <Badge variant="outline" className="px-2">{t.scope || "—"}</Badge>
-                        </TableCell>
-                        <TableCell>
-                          {ativo ? (
-                            <Badge variant="outline" className="px-2">Ativo</Badge>
-                          ) : (
-                            <Badge variant="secondary" className="px-2">Revogado</Badge>
-                          )}
-                        </TableCell>
-                        <TableCell className="text-right">
-                          <DropdownMenu>
-                            <DropdownMenuTrigger asChild>
-                              <Button variant="ghost" size="icon" className="size-8">
-                                <IconDotsVertical className="size-4" />
-                                <span className="sr-only">Ações</span>
-                              </Button>
-                            </DropdownMenuTrigger>
-                            <DropdownMenuContent align="end">
+                  <TableBody>
+                    {finalMyTokens.length ? (
+                      finalMyTokens.map((t) => {
+                        const ativo = isAtivo(t);
+                        return (
+                          <TableRow key={t.id}>
+                            <TableCell className="font-medium">
+                              {t.description || "—"}
+                            </TableCell>
+                            {/* Fallback para email caso não haja nome */}
+                            <TableCell className="hidden md:table-cell">
+                              {t.ownerName || t.ownerEmail || "—"}
+                            </TableCell>
+                            <TableCell className="hidden xl:table-cell">
+                              {t.ownerEmail || "—"}
+                            </TableCell>
+                            <TableCell className="hidden md:table-cell">
+                              {fmtDate(t.createdAt)}
+                            </TableCell>
+                            <TableCell className="hidden md:table-cell">
+                              {fmtDate(t.expiresAt)}
+                            </TableCell>
+                            <TableCell className="hidden sm:table-cell">
+                              <Badge variant="outline" className="px-2">
+                                {t.scope || "—"}
+                              </Badge>
+                            </TableCell>
+                            <TableCell>
                               {ativo ? (
-                                <>
-                                  <DropdownMenuItem
-                                    onClick={() => revokeToken(t.id)}
-                                    className="text-destructive cursor-pointer"
-                                  >
-                                    Revogar
-                                  </DropdownMenuItem>
-                                  <DropdownMenuSeparator />
-                                </>
+                                <Badge variant="outline" className="px-2">
+                                  Ativo
+                                </Badge>
                               ) : (
-                                <DropdownMenuItem disabled>Revogado</DropdownMenuItem>
+                                <Badge variant="secondary" className="px-2">
+                                  Revogado
+                                </Badge>
                               )}
-                            </DropdownMenuContent>
-                          </DropdownMenu>
+                            </TableCell>
+                            <TableCell className="text-right">
+                              <DropdownMenu>
+                                <DropdownMenuTrigger asChild>
+                                  <Button
+                                    variant="ghost"
+                                    size="icon"
+                                    className="size-8"
+                                  >
+                                    <IconDotsVertical className="size-4" />
+                                    <span className="sr-only">Ações</span>
+                                  </Button>
+                                </DropdownMenuTrigger>
+                                <DropdownMenuContent align="end">
+                                  {ativo ? (
+                                    <>
+                                      <DropdownMenuItem
+                                        onClick={() => revokeToken(t.id)}
+                                        className="text-destructive cursor-pointer"
+                                      >
+                                        Revogar
+                                      </DropdownMenuItem>
+                                      <DropdownMenuSeparator />
+                                    </>
+                                  ) : (
+                                    <DropdownMenuItem disabled>
+                                      Revogado
+                                    </DropdownMenuItem>
+                                  )}
+                                </DropdownMenuContent>
+                              </DropdownMenu>
+                            </TableCell>
+                          </TableRow>
+                        );
+                      })
+                    ) : (
+                      <TableRow>
+                        <TableCell
+                          colSpan={8}
+                          className="h-24 text-center text-muted-foreground"
+                        >
+                          {loadingMine
+                            ? "Carregando…"
+                            : "Nenhuma criação sua encontrada."}
                         </TableCell>
                       </TableRow>
-                    )
-                  })
-                ) : (
-                  <TableRow>
-                    <TableCell colSpan={8} className="h-24 text-center text-muted-foreground">
-                      {loaded ? "Nada encontrado." : "Carregando…"}
-                    </TableCell>
-                  </TableRow>
-                )}
-              </TableBody>
-            </Table>
-          </div>
-        </CardContent>
-      </Card>
+                    )}
+                  </TableBody>
+                </Table>
+              </div>
+            </CardContent>
+          </Card>
+        </TabsContent>
+        <TabsContent value="tokensCreateforOthers">
+          <Card>
+            <CardHeader className="pb-2">
+              <CardTitle className="text-base">Lista</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="overflow-hidden rounded-md border">
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>Descrição</TableHead>
+                      <TableHead className="hidden md:table-cell">
+                        Dono
+                      </TableHead>
+                      <TableHead className="hidden xl:table-cell">
+                        E-mail do dono
+                      </TableHead>
+                      <TableHead className="hidden md:table-cell">
+                        Criado em
+                      </TableHead>
+                      <TableHead className="hidden md:table-cell">
+                        Expira em
+                      </TableHead>
+                      <TableHead className="hidden sm:table-cell">
+                        Escopo
+                      </TableHead>
+                      <TableHead>Status</TableHead>
+                      <TableHead className="w-12"></TableHead>
+                    </TableRow>
+                  </TableHeader>
+
+                  <TableBody>
+                    {finalOthersTokens.length ? (
+                      finalOthersTokens.map((t) => {
+                        const ativo = isAtivo(t);
+                        return (
+                          <TableRow key={t.id}>
+                            <TableCell className="font-medium">
+                              {t.description || "—"}
+                            </TableCell>
+                            {/* Fallback para email caso não haja nome */}
+                            <TableCell className="hidden md:table-cell">
+                              {t.ownerName || t.ownerEmail || "—"}
+                            </TableCell>
+                            <TableCell className="hidden xl:table-cell">
+                              {t.ownerEmail || "—"}
+                            </TableCell>
+                            <TableCell className="hidden md:table-cell">
+                              {fmtDate(t.createdAt)}
+                            </TableCell>
+                            <TableCell className="hidden md:table-cell">
+                              {fmtDate(t.expiresAt)}
+                            </TableCell>
+                            <TableCell className="hidden sm:table-cell">
+                              <Badge variant="outline" className="px-2">
+                                {t.scope || "—"}
+                              </Badge>
+                            </TableCell>
+                            <TableCell>
+                              {ativo ? (
+                                <Badge variant="outline" className="px-2">
+                                  Ativo
+                                </Badge>
+                              ) : (
+                                <Badge variant="secondary" className="px-2">
+                                  Revogado
+                                </Badge>
+                              )}
+                            </TableCell>
+                            <TableCell className="text-right">
+                              <DropdownMenu>
+                                <DropdownMenuTrigger asChild>
+                                  <Button
+                                    variant="ghost"
+                                    size="icon"
+                                    className="size-8"
+                                  >
+                                    <IconDotsVertical className="size-4" />
+                                    <span className="sr-only">Ações</span>
+                                  </Button>
+                                </DropdownMenuTrigger>
+                                <DropdownMenuContent align="end">
+                                  {ativo ? (
+                                    <>
+                                      <DropdownMenuItem
+                                        onClick={() => revokeToken(t.id)}
+                                        className="text-destructive cursor-pointer"
+                                      >
+                                        Revogar
+                                      </DropdownMenuItem>
+                                      <DropdownMenuSeparator />
+                                    </>
+                                  ) : (
+                                    <DropdownMenuItem disabled>
+                                      Revogado
+                                    </DropdownMenuItem>
+                                  )}
+                                </DropdownMenuContent>
+                              </DropdownMenu>
+                            </TableCell>
+                          </TableRow>
+                        );
+                      })
+                    ) : (
+                      <TableRow>
+                        <TableCell
+                          colSpan={8}
+                          className="h-24 text-center text-muted-foreground"
+                        >
+                          {loadingOthers
+                            ? "Carregando…"
+                            : "Nenhum token de outros encontrado."}
+                        </TableCell>
+                      </TableRow>
+                    )}
+                  </TableBody>
+                </Table>
+              </div>
+            </CardContent>
+          </Card>
+        </TabsContent>
+      </Tabs>
     </div>
-  )
+  );
 }
