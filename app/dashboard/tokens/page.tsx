@@ -49,6 +49,7 @@ import {
   IconClipboard,
 } from "@tabler/icons-react";
 import { fetchMe, type MeData, type MeResponse } from "@/lib/me";
+import TokenList from "@/components/TokenList";
 
 type ApiToken = {
   id: string;
@@ -563,116 +564,11 @@ export default function TokensPage() {
             </CardHeader>
             <CardContent>
               <div className="overflow-hidden rounded-md border">
-                <Table>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead>Descrição</TableHead>
-                      <TableHead className="hidden md:table-cell">
-                        Dono
-                      </TableHead>
-                      <TableHead className="hidden xl:table-cell">
-                        E-mail do dono
-                      </TableHead>
-                      <TableHead className="hidden md:table-cell">
-                        Criado em
-                      </TableHead>
-                      <TableHead className="hidden md:table-cell">
-                        Expira em
-                      </TableHead>
-                      <TableHead className="hidden sm:table-cell">
-                        Escopo
-                      </TableHead>
-                      <TableHead>Status</TableHead>
-                      <TableHead className="w-12"></TableHead>
-                    </TableRow>
-                  </TableHeader>
-
-                  <TableBody>
-                    {finalMyTokens.length ? (
-                      finalMyTokens.map((t) => {
-                        const ativo = isAtivo(t);
-                        return (
-                          <TableRow key={t.id}>
-                            <TableCell className="font-medium">
-                              {t.description || "—"}
-                            </TableCell>
-                            {/* Fallback para email caso não haja nome */}
-                            <TableCell className="hidden md:table-cell">
-                              {t.ownerName || t.ownerEmail || "—"}
-                            </TableCell>
-                            <TableCell className="hidden xl:table-cell">
-                              {t.ownerEmail || "—"}
-                            </TableCell>
-                            <TableCell className="hidden md:table-cell">
-                              {fmtDate(t.createdAt)}
-                            </TableCell>
-                            <TableCell className="hidden md:table-cell">
-                              {fmtDate(t.expiresAt)}
-                            </TableCell>
-                            <TableCell className="hidden sm:table-cell">
-                              <Badge variant="outline" className="px-2">
-                                {t.scope || "—"}
-                              </Badge>
-                            </TableCell>
-                            <TableCell>
-                              {ativo ? (
-                                <Badge variant="outline" className="px-2">
-                                  Ativo
-                                </Badge>
-                              ) : (
-                                <Badge variant="secondary" className="px-2">
-                                  Revogado
-                                </Badge>
-                              )}
-                            </TableCell>
-                            <TableCell className="text-right">
-                              <DropdownMenu>
-                                <DropdownMenuTrigger asChild>
-                                  <Button
-                                    variant="ghost"
-                                    size="icon"
-                                    className="size-8"
-                                  >
-                                    <IconDotsVertical className="size-4" />
-                                    <span className="sr-only">Ações</span>
-                                  </Button>
-                                </DropdownMenuTrigger>
-                                <DropdownMenuContent align="end">
-                                  {ativo ? (
-                                    <>
-                                      <DropdownMenuItem
-                                        onClick={() => revokeToken(t.id)}
-                                        className="text-destructive cursor-pointer"
-                                      >
-                                        Revogar
-                                      </DropdownMenuItem>
-                                      <DropdownMenuSeparator />
-                                    </>
-                                  ) : (
-                                    <DropdownMenuItem disabled>
-                                      Revogado
-                                    </DropdownMenuItem>
-                                  )}
-                                </DropdownMenuContent>
-                              </DropdownMenu>
-                            </TableCell>
-                          </TableRow>
-                        );
-                      })
-                    ) : (
-                      <TableRow>
-                        <TableCell
-                          colSpan={8}
-                          className="h-24 text-center text-muted-foreground"
-                        >
-                          {loadingMine
-                            ? "Carregando…"
-                            : "Nenhuma criação sua encontrada."}
-                        </TableCell>
-                      </TableRow>
-                    )}
-                  </TableBody>
-                </Table>
+                <TokenList
+                  tokens={finalMyTokens}
+                  loading={loadingMine}
+                  revokeToken={revokeToken}
+                />
               </div>
             </CardContent>
           </Card>
@@ -684,116 +580,11 @@ export default function TokensPage() {
             </CardHeader>
             <CardContent>
               <div className="overflow-hidden rounded-md border">
-                <Table>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead>Descrição</TableHead>
-                      <TableHead className="hidden md:table-cell">
-                        Dono
-                      </TableHead>
-                      <TableHead className="hidden xl:table-cell">
-                        E-mail do dono
-                      </TableHead>
-                      <TableHead className="hidden md:table-cell">
-                        Criado em
-                      </TableHead>
-                      <TableHead className="hidden md:table-cell">
-                        Expira em
-                      </TableHead>
-                      <TableHead className="hidden sm:table-cell">
-                        Escopo
-                      </TableHead>
-                      <TableHead>Status</TableHead>
-                      <TableHead className="w-12"></TableHead>
-                    </TableRow>
-                  </TableHeader>
-
-                  <TableBody>
-                    {finalOthersTokens.length ? (
-                      finalOthersTokens.map((t) => {
-                        const ativo = isAtivo(t);
-                        return (
-                          <TableRow key={t.id}>
-                            <TableCell className="font-medium">
-                              {t.description || "—"}
-                            </TableCell>
-                            {/* Fallback para email caso não haja nome */}
-                            <TableCell className="hidden md:table-cell">
-                              {t.ownerName || t.ownerEmail || "—"}
-                            </TableCell>
-                            <TableCell className="hidden xl:table-cell">
-                              {t.ownerEmail || "—"}
-                            </TableCell>
-                            <TableCell className="hidden md:table-cell">
-                              {fmtDate(t.createdAt)}
-                            </TableCell>
-                            <TableCell className="hidden md:table-cell">
-                              {fmtDate(t.expiresAt)}
-                            </TableCell>
-                            <TableCell className="hidden sm:table-cell">
-                              <Badge variant="outline" className="px-2">
-                                {t.scope || "—"}
-                              </Badge>
-                            </TableCell>
-                            <TableCell>
-                              {ativo ? (
-                                <Badge variant="outline" className="px-2">
-                                  Ativo
-                                </Badge>
-                              ) : (
-                                <Badge variant="secondary" className="px-2">
-                                  Revogado
-                                </Badge>
-                              )}
-                            </TableCell>
-                            <TableCell className="text-right">
-                              <DropdownMenu>
-                                <DropdownMenuTrigger asChild>
-                                  <Button
-                                    variant="ghost"
-                                    size="icon"
-                                    className="size-8"
-                                  >
-                                    <IconDotsVertical className="size-4" />
-                                    <span className="sr-only">Ações</span>
-                                  </Button>
-                                </DropdownMenuTrigger>
-                                <DropdownMenuContent align="end">
-                                  {ativo ? (
-                                    <>
-                                      <DropdownMenuItem
-                                        onClick={() => revokeToken(t.id)}
-                                        className="text-destructive cursor-pointer"
-                                      >
-                                        Revogar
-                                      </DropdownMenuItem>
-                                      <DropdownMenuSeparator />
-                                    </>
-                                  ) : (
-                                    <DropdownMenuItem disabled>
-                                      Revogado
-                                    </DropdownMenuItem>
-                                  )}
-                                </DropdownMenuContent>
-                              </DropdownMenu>
-                            </TableCell>
-                          </TableRow>
-                        );
-                      })
-                    ) : (
-                      <TableRow>
-                        <TableCell
-                          colSpan={8}
-                          className="h-24 text-center text-muted-foreground"
-                        >
-                          {loadingOthers
-                            ? "Carregando…"
-                            : "Nenhum token de outros encontrado."}
-                        </TableCell>
-                      </TableRow>
-                    )}
-                  </TableBody>
-                </Table>
+                <TokenList
+                  tokens={finalOthersTokens}
+                  loading={loadingOthers}
+                  revokeToken={revokeToken}
+                />
               </div>
             </CardContent>
           </Card>
