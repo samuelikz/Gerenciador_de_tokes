@@ -212,7 +212,7 @@ export default function TokensPage() {
 
   const loadAll = React.useCallback(async () => {
     setLoadingOthers(true);
-    const res = await fetch("/api/tokens/all", {
+    const res = await fetch("/api/tokensall", {
       method: "GET",
       cache: "no-store",
     });
