@@ -10,7 +10,7 @@ export async function PATCH(req: Request, { params }: { params: { id: string } }
   if (!token) return NextResponse.json({ success:false, error:{ message:"Não autenticado" } }, { status:401 })
 
   const body = await req.json().catch(()=>null)
-  const resp = await fetch(`${API}/users/${params.id}/active`, {
+  const resp = await fetch(`${API}/users/${params.id}`, {
     method: "PATCH",
     headers: { Authorization: `Bearer ${token}`, "Content-Type":"application/json" },
     body: JSON.stringify(body),

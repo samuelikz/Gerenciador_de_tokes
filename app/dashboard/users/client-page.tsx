@@ -121,6 +121,7 @@ export default function UsersClientPage() {
       if (!res.ok || body?.success === false) {
         throw new Error(extractApiMessage(body) ?? "Falha ao carregar usuários");
       }
+      console.log(res, body)
 
       const list: ApiUser[] = Array.isArray(body?.data)
         ? body!.data!
@@ -182,6 +183,8 @@ export default function UsersClientPage() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ name, email, role, password }),
       });
+      console.log("res, api/users",res)
+
       const body = await readJson<CreateResp>(res);
       if (!res.ok || body?.success === false) {
         throw new Error(extractApiMessage(body) ?? "Falha ao criar usuário");
@@ -202,14 +205,14 @@ export default function UsersClientPage() {
     console.log("alterando status", user.id, user.isActive);
     
     try {
-      // 🛑 CORRIGIDO: Adicionado /api para bater no Route Handler correto
-      const res = await fetch(`/api/users/${user.id}/toggle/`, { 
+      const res = await fetch(`/api/users/${user.id}/toggle`, { 
         method: "PATCH", 
         headers: { "Content-Type": "application/json" }, 
-        body: JSON.stringify({ isActive: !user.isActive }), 
+        body: JSON.stringify({ isActive: !user.isActive }),
+        credentials: 'include',
         redirect: "manual", // Necessário para evitar redirecionamentos em caso de 307/302
       });
-      
+      console.log(res.body, res.status)      
       console.log("2- resposta recebida. Status:", res.status);
       
       // Checagem se houve redirecionamento indesejado (ex: 307)
@@ -220,6 +223,8 @@ export default function UsersClientPage() {
       const body = await readJson<UpdateResp>(res);
       if (!res.ok || body?.success === false) {
         console.log("3- falha", res, body);
+        console.log("res.body, alterar papel",res.body)
+
         throw new Error(extractApiMessage(body) ?? "Falha ao alterar status");
       }
       
@@ -238,21 +243,16 @@ export default function UsersClientPage() {
     if (user.role === nextRole) return;
     
     try {
-      console.log("alterando papel", user.id, nextRole);
-      const res = await fetch(`/api/users/${user.id}/`, { 
+      const res = await fetch(`/api/users/${user.id}`, { 
         method: "PATCH", 
         headers: { "Content-Type": "application/json" }, 
-        body: JSON.stringify({ role: nextRole }), 
+        body: JSON.stringify({ role: nextRole }),
+        credentials: 'include',
         redirect: "manual",
       });
-      
-      if (res.status === 307 || res.status === 302) {
-          throw new Error("Erro de roteamento (307/302). Verifique a barra final da URL do fetch.");
-      }
 
       const body = await readJson<UpdateResp>(res);
       if (!res.ok || body?.success === false) {
-        console.log("falha ao alterar papel", user.id, nextRole, body, res);
         throw new Error(extractApiMessage(body) ?? "Falha ao alterar papel");
       }
       
