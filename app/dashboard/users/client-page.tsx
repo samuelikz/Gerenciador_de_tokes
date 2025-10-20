@@ -121,7 +121,6 @@ export default function UsersClientPage() {
       if (!res.ok || body?.success === false) {
         throw new Error(extractApiMessage(body) ?? "Falha ao carregar usuários");
       }
-      console.log(res, body)
 
       const list: ApiUser[] = Array.isArray(body?.data)
         ? body!.data!
@@ -183,8 +182,6 @@ export default function UsersClientPage() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ name, email, role, password }),
       });
-      console.log("res, api/users",res)
-
       const body = await readJson<CreateResp>(res);
       if (!res.ok || body?.success === false) {
         throw new Error(extractApiMessage(body) ?? "Falha ao criar usuário");
@@ -202,41 +199,38 @@ export default function UsersClientPage() {
 
   async function toggleActive(user: ApiUser) {
     if (!isAdmin) return toast.error("Apenas administradores podem alterar status.");
-    console.log("alterando status", user.id, user.isActive);
+    
+    const novoIsActive = !user.isActive;
     
     try {
-      const res = await fetch(`/api/users/${user.id}/toggle`, { 
+      const res = await fetch(`/api/users/toggle`, { // Rota limpa, sem o ID na URL
         method: "PATCH", 
         headers: { "Content-Type": "application/json" }, 
-        body: JSON.stringify({ isActive: !user.isActive }),
-        credentials: 'include',
-        redirect: "manual", // Necessário para evitar redirecionamentos em caso de 307/302
+        body: JSON.stringify({ 
+            userId: user.id,        
+        }),
       });
-      console.log(res.body, res.status)      
+      
       console.log("2- resposta recebida. Status:", res.status);
       
-      // Checagem se houve redirecionamento indesejado (ex: 307)
       if (res.status === 307 || res.status === 302) {
           throw new Error("Erro de roteamento (307/302). Verifique a barra final da URL do fetch.");
       }
 
       const body = await readJson<UpdateResp>(res);
+      
       if (!res.ok || body?.success === false) {
-        console.log("3- falha", res, body);
-        console.log("res.body, alterar papel",res.body)
 
         throw new Error(extractApiMessage(body) ?? "Falha ao alterar status");
       }
       
-      console.log("4- sucesso na alteração", user.id, user.isActive);
-      toast.success(user.isActive === false ? "Usuário ativado" : "Usuário desativado");
+      toast.success(novoIsActive ? "Usuário ativado" : "Usuário desativado");
       await load(); // Recarrega a lista
       
     } catch (err) {
-      console.log("5- erro status", user.id, user.isActive);
       toast.error(getErrorMessage(err, "Erro ao alterar status"));
     }
-  }
+}
 
   async function changeRole(user: ApiUser, nextRole: Role) {
     if (!isAdmin) return toast.error("Apenas administradores podem alterar o papel.");
@@ -262,8 +256,6 @@ export default function UsersClientPage() {
       toast.error(getErrorMessage(err, "Erro ao alterar papel"));
     }
   }
-
-  // --- RENDERIZAÇÃO ---
 
   return (
     <div className="flex flex-col gap-6 px-4 lg:px-6">
