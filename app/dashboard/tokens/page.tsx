@@ -156,7 +156,6 @@ export default function TokensPage() {
   const [othersTokens, setOthersTokens] = React.useState<ApiToken[]>([]);
   const [loadingMine, setLoadingMine] = React.useState(false);
   const [loadingOthers, setLoadingOthers] = React.useState(false);
-  const [loaded, setLoaded] = React.useState(false);
 
   // criar
   const [openCreate, setOpenCreate] = React.useState(false);

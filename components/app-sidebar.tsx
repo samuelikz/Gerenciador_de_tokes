@@ -79,7 +79,7 @@ export function AppSidebar({
 
     (async () => {
       try {
-        // Usando a rota que você mencionou: /api/users/me/profile
+        // Chamada Direta ao Proxy Seguro (lê o cookie HTTP-Only)
         const res = await fetch(`/api/users/me/profile`, { 
           credentials: "include",
           cache: "no-store",
@@ -87,7 +87,6 @@ export function AppSidebar({
         
         const json = (await res.json().catch(() => ({}))) as MeResponse;
         
-
         if (!mounted) return;
 
         // Verifica se a resposta JSON tem sucesso: true
@@ -98,6 +97,7 @@ export function AppSidebar({
             id: d.id,
             email: d.email,
             role: d.role,
+            // Fallback para nome (usa o username do email se o 'name' for null/undefined)
             name: d.name ?? (d.email ? d.email.split("@")[0] : undefined),
             avatar: d.avatar ?? null,
           });
@@ -115,9 +115,11 @@ export function AppSidebar({
     return () => {
       mounted = false;
     };
-  }, []); // Array de dependência vazio garante que roda apenas na montagem
+  }, []); // Executa apenas na montagem
 
+  // 1. Determina o isAdmin baseando-se no estado 'me'
   const isAdminDetected = me?.role === "ADMIN";
+  // Permite que uma prop externa (se for o caso) sobrescreva o valor
   const isAdmin =
     typeof isAdminProp === "boolean" ? isAdminProp : isAdminDetected;
 
@@ -126,11 +128,12 @@ export function AppSidebar({
       userProp?.name ??
       me?.name ??
       (me?.email ? me.email.split("@")[0] : undefined) ??
-      "nome de usuário não encontrado",
+      "Usuário Desconhecido", // Fallback final
     email: userProp?.email ?? me?.email ?? "—",
     avatar: userProp?.avatar ?? me?.avatar ?? "/avatars/shadcn.jpg",
   };
 
+  // 2. Filtra os itens de navegação: apenas mostra se adminOnly for falso OU se isAdmin for true
   const navMain = base.navMain.filter((i) => !i.adminOnly || isAdmin);
 
   return (
@@ -154,10 +157,16 @@ export function AppSidebar({
       </SidebarHeader>
 
       <SidebarContent>
-        {/* {loading && <div className="p-3 text-sm text-muted-foreground">Carregando…</div>} */}
-        <NavMain items={navMain} />
-        <NavDocuments items={base.documents} />
-        <NavSecondary items={base.navSecondary} className="mt-auto" />
+        {/* 🛑 SOLUÇÃO: Renderiza o conteúdo principal APENAS se não estiver carregando */}
+        {loading ? (
+            <div className="p-3 text-sm text-muted-foreground">Carregando menu...</div>
+        ) : (
+            <>
+                <NavMain items={navMain} /> 
+                <NavDocuments items={base.documents} />
+                <NavSecondary items={base.navSecondary} className="mt-auto" />
+            </>
+        )}
       </SidebarContent>
 
       <SidebarFooter>
