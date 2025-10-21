@@ -211,7 +211,6 @@ export default function UsersClientPage() {
         }),
       });
       
-      console.log("2- resposta recebida. Status:", res.status);
       
       if (res.status === 307 || res.status === 302) {
           throw new Error("Erro de roteamento (307/302). Verifique a barra final da URL do fetch.");

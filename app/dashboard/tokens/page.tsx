@@ -8,23 +8,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Input } from "@/components/ui/input";
-import { Badge } from "@/components/ui/badge";
 import { Label } from "@/components/ui/label";
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table";
-import {
-  DropdownMenu,
-  DropdownMenuTrigger,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuSeparator,
-} from "@/components/ui/dropdown-menu";
 import {
   Dialog,
   DialogContent,
@@ -44,7 +28,6 @@ import {
   IconPlus,
   IconSearch,
   IconReload,
-  IconDotsVertical,
   IconDownload,
   IconClipboard,
 } from "@tabler/icons-react";
@@ -73,8 +56,8 @@ type ApiErrorShape =
 
 type ListResp = {
   success?: boolean;
-  data?: ApiToken[]; // mantém compat
-  items?: ApiToken[]; // backend envia items
+  data?: ApiToken[];
+  items?: ApiToken[];
 } & ApiErrorShape;
 
 type CreateResp = {
@@ -83,32 +66,6 @@ type CreateResp = {
   token?: ApiToken;
   apiKey?: string;
 } & ApiErrorShape;
-
-// fmtDate seguro: nunca retorna objetos; só string
-function fmtDate(d?: unknown) {
-  if (d == null) return "—";
-
-  let dt: Date;
-  if (typeof d === "string" || typeof d === "number") {
-    dt = new Date(d);
-  } else if (d instanceof Date) {
-    dt = d;
-  } else if (typeof (d as any)?.toString === "function") {
-    dt = new Date((d as any).toString());
-  } else {
-    return "—";
-  }
-
-  if (Number.isNaN(dt.getTime())) return "—";
-  try {
-    return new Intl.DateTimeFormat("pt-BR", {
-      dateStyle: "short",
-      timeStyle: "short",
-    }).format(dt);
-  } catch {
-    return "—";
-  }
-}
 
 const isAtivo = (t: ApiToken) => !!(t.isActive && !t.revokedAt);
 const toMs = (d?: string | null) => (d ? new Date(d).getTime() : 0);
@@ -147,32 +104,28 @@ function extractApiMessage(body: unknown): string | null {
 
 export default function TokensPage() {
   const role = useRole();
-  const isAdmin = role === "ADMIN";
+  const isAdmin = role === "ADMIN"; // tabela
 
-  // tabela
   const [query, setQuery] = React.useState("");
   const [loading, setLoading] = React.useState(false);
   const [myTokens, setMyTokens] = React.useState<ApiToken[]>([]);
   const [othersTokens, setOthersTokens] = React.useState<ApiToken[]>([]);
   const [loadingMine, setLoadingMine] = React.useState(false);
-  const [loadingOthers, setLoadingOthers] = React.useState(false);
+  const [loadingOthers, setLoadingOthers] = React.useState(false); // criar
 
-  // criar
   const [openCreate, setOpenCreate] = React.useState(false);
   const [creating, setCreating] = React.useState(false);
   const [scope, setScope] = React.useState<string>("READ");
   const [expiresDate, setExpiresDate] = React.useState<string>("");
-  const [description, setDescription] = React.useState<string>("");
+  const [description, setDescription] = React.useState<string>(""); // resultado
 
-  // resultado
   const [openResult, setOpenResult] = React.useState(false);
   const [apiKey, setApiKey] = React.useState<string>("");
   const [createdPayload, setCreatedPayload] = React.useState<{
     token: ApiToken;
     apiKey: string;
-  } | null>(null);
+  } | null>(null); // hoje (AAAA-MM-DD) para bloquear datas passadas no input
 
-  // hoje (AAAA-MM-DD) para bloquear datas passadas no input
   const todayStr = React.useMemo(
     () => new Date().toISOString().slice(0, 10),
     []
@@ -180,70 +133,79 @@ export default function TokensPage() {
 
   const load = React.useCallback(async () => {
     setLoadingMine(true);
-    const res = await fetch("/api/tokens/", {
-      method: "GET",
-      cache: "no-store",
-    });
-    const body = await readJson<ListResp>(res);
+    try {
+      const res = await fetch("/api/tokens", {
+        method: "GET",
+        cache: "no-store",
+      });
+      const body = await readJson<ListResp>(res);
 
-    if (!res.ok || body?.success === false) {
-      throw new Error(extractApiMessage(body) ?? "Falha ao carregar tokens");
+      if (!res.ok || body?.success === false) {
+        throw new Error(extractApiMessage(body) ?? "Falha ao carregar tokens");
+      } // aceita { data } OU { items }
+
+      const list: ApiToken[] = Array.isArray(body?.data)
+        ? body!.data!
+        : Array.isArray(body?.items)
+        ? body!.items!
+        : []; // normaliza campos de data para string|null
+
+      const norm = list.map((t) => ({
+        ...t,
+        createdAt: typeof t.createdAt === "string" ? t.createdAt : null,
+        expiresAt: typeof t.expiresAt === "string" ? t.expiresAt : null,
+        revokedAt: typeof t.revokedAt === "string" ? t.revokedAt : null,
+      })) as ApiToken[];
+      setMyTokens(norm);
+    } catch (err: unknown) {
+      toast.error(getErrorMessage(err, "Erro ao buscar tokens"));
+    } finally {
+      setLoadingMine(false);
     }
-
-    // aceita { data } OU { items }
-    const list: ApiToken[] = Array.isArray(body?.data)
-      ? body!.data!
-      : Array.isArray(body?.items)
-      ? body!.items!
-      : [];
-
-    // normaliza campos de data para string|null
-    const norm = list.map((t) => ({
-      ...t,
-      createdAt: typeof t.createdAt === "string" ? t.createdAt : null,
-      expiresAt: typeof t.expiresAt === "string" ? t.expiresAt : null,
-      revokedAt: typeof t.revokedAt === "string" ? t.revokedAt : null,
-    })) as ApiToken[];
-    setMyTokens(norm);
-    setLoadingMine(false);
   }, []);
 
   const loadAll = React.useCallback(async () => {
     setLoadingOthers(true);
-    const res = await fetch("/api/tokensall", {
-      method: "GET",
-      cache: "no-store",
-    });
-    const body = await readJson<ListResp>(res);
+    try {
+      // 🛑 CORREÇÃO: Adicionando a barra final para tentar resolver o 307
+      const res = await fetch("/api/tokensall/", {
+        method: "GET",
+        cache: "no-store",
+        credentials: "include", // Necessário para cookies
+      });
+      const body = await readJson<ListResp>(res);
 
-    if (!res.ok || body?.success === false) {
-      throw new Error(extractApiMessage(body) ?? "Falha ao carregar tokens");
+      if (!res.ok || body?.success === false) {
+        throw new Error(extractApiMessage(body) ?? "Falha ao carregar tokens");
+      } // aceita { data } OU { items }
+
+      const list: ApiToken[] = Array.isArray(body?.data)
+        ? body!.data!
+        : Array.isArray(body?.items)
+        ? body!.items!
+        : []; // normaliza campos de data para string|null
+
+      const norm = list.map((t) => ({
+        ...t,
+        createdAt: typeof t.createdAt === "string" ? t.createdAt : null,
+        expiresAt: typeof t.expiresAt === "string" ? t.expiresAt : null,
+        revokedAt: typeof t.revokedAt === "string" ? t.revokedAt : null,
+      })) as ApiToken[];
+      setOthersTokens(norm);
+    } catch (err: unknown) {
+      toast.error(getErrorMessage(err, "Erro ao buscar tokens"));
+    } finally {
+      setLoadingOthers(false);
     }
-
-    // aceita { data } OU { items }
-    const list: ApiToken[] = Array.isArray(body?.data)
-      ? body!.data!
-      : Array.isArray(body?.items)
-      ? body!.items!
-      : [];
-
-    // normaliza campos de data para string|null
-    const norm = list.map((t) => ({
-      ...t,
-      createdAt: typeof t.createdAt === "string" ? t.createdAt : null,
-      expiresAt: typeof t.expiresAt === "string" ? t.expiresAt : null,
-      revokedAt: typeof t.revokedAt === "string" ? t.revokedAt : null,
-    })) as ApiToken[];
-    setOthersTokens(norm);
-    setLoadingOthers(false);
   }, []);
 
   React.useEffect(() => {
     load();
-    loadAll();
-  }, [load, loadAll]);
+    if (isAdmin) {
+      loadAll();
+    }
+  }, [load, loadAll, isAdmin]); // Função unificada para aplicar a busca e ordenação
 
-  // Função unificada para aplicar a busca e ordenação
   const applyFilterAndSort = (tokens: ApiToken[], query: string) => {
     // Lógica de busca (do seu antigo 'filtered')
     const q = query.trim().toLowerCase();
@@ -257,9 +219,8 @@ export default function TokensPage() {
             (t.createdByEmail ?? "").toLowerCase().includes(q) ||
             (t.scope ?? "").toLowerCase().includes(q)
         )
-      : tokens;
+      : tokens; // Lógica de ordenação (do seu 'filteredSorted')
 
-    // Lógica de ordenação (do seu 'filteredSorted')
     return [...filtered].sort((a, b) => {
       const aa = isAtivo(a) ? 1 : 0;
       const bb = isAtivo(b) ? 1 : 0;
@@ -271,17 +232,22 @@ export default function TokensPage() {
       const eb = toMs(b.expiresAt);
       return ea - eb;
     });
-  };
+  }; // NOVO: Lista final (busca + ordem) para Minhas Criações
 
-  // NOVO: Lista final (busca + ordem) para Minhas Criações
   const finalMyTokens = React.useMemo(() => {
     return applyFilterAndSort(myTokens, query);
-  }, [myTokens, query]);
+  }, [myTokens, query]); // NOVO: Lista final (busca + ordem) para Outros Tokens
 
-  // NOVO: Lista final (busca + ordem) para Outros Tokens
   const finalOthersTokens = React.useMemo(() => {
     return applyFilterAndSort(othersTokens, query);
   }, [othersTokens, query]);
+
+  const refreshAll = React.useCallback(async () => {
+    await load();
+    if (isAdmin) {
+      await loadAll();
+    }
+  }, [load, loadAll, isAdmin]);
 
   async function revokeToken(tokenId: string) {
     try {
@@ -295,7 +261,7 @@ export default function TokensPage() {
         throw new Error(extractApiMessage(body) ?? "Falha ao revogar token");
       }
       toast.success("Token revogado");
-      await load();
+      await refreshAll(); // 🛑 USO DA FUNÇÃO UNIFICADA
     } catch (err: unknown) {
       toast.error(getErrorMessage(err, "Erro ao revogar"));
     }
@@ -304,9 +270,8 @@ export default function TokensPage() {
   async function createToken(e: React.FormEvent) {
     e.preventDefault();
     try {
-      setCreating(true);
+      setCreating(true); // Validação: não permitir passado (se informado)
 
-      // Validação: não permitir passado (se informado)
       if (expiresDate) {
         const picked = new Date(`${expiresDate}T00:00:00`);
         const now = new Date();
@@ -358,7 +323,7 @@ export default function TokensPage() {
       setExpiresDate("");
       setDescription("");
 
-      await load();
+      await refreshAll(); // 🛑 USO DA FUNÇÃO UNIFICADA
     } catch (err: unknown) {
       toast.error(getErrorMessage(err, "Erro ao criar token"));
     } finally {
@@ -373,6 +338,7 @@ export default function TokensPage() {
   }
 
   function downloadJson() {
+    if (!createdPayload) return;
     const content = JSON.stringify(createdPayload ?? {}, null, 2);
     const blob = new Blob([content], {
       type: "application/json;charset=utf-8",
@@ -387,6 +353,8 @@ export default function TokensPage() {
     a.click();
     URL.revokeObjectURL(url);
   }
+
+  const loadingAny = loadingMine || loadingOthers;
 
   return (
     <div className="flex flex-col gap-6 px-4 lg:px-6">

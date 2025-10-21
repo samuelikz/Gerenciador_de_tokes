@@ -58,8 +58,6 @@ export function SiteHeader({ user: userProp, className, ...props }: SiteHeaderPr
 
         if (!mounted) return;
 
-        console.log("Header Status Fetch:", res.status, " | JSON:", json); 
-
         if (json && "success" in json && json.success) {
           const d = json.data;
           
@@ -75,7 +73,6 @@ export function SiteHeader({ user: userProp, className, ...props }: SiteHeaderPr
           setMe(null); // Falha de autenticação ou JSON malformado
         }
       } catch (e) {
-        console.error("Erro no fetch de perfil do Header:", e);
         if (!mounted) return;
         setMe(null);
       } finally {
