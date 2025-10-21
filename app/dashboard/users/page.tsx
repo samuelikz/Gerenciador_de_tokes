@@ -15,6 +15,6 @@ export default async function Page() {
   const jar = await cookies()
   const token = jar.get(process.env.AUTH_COOKIE_NAME || "accessToken")?.value
   const claims = token ? parseJwt<Claims>(token) : null
-  if (claims?.role !== "ADMIN") notFound() // oculta a página de não-admins
+  if (claims?.role !== "ADMIN") notFound()
   return <UsersClientPage />
 }

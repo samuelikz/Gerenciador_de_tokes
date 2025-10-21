@@ -48,7 +48,6 @@ import {
   IconDownload,
   IconClipboard,
 } from "@tabler/icons-react";
-import { fetchMe, type MeData, type MeResponse } from "@/lib/me";
 import TokenList from "@/components/TokenList";
 
 type ApiToken = {
