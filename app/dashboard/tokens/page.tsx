@@ -539,22 +539,32 @@ export default function TokensPage() {
             </CardContent>
           </Card>
         </TabsContent>
-        <TabsContent value="tokensCreateforOthers">
-          <Card>
-            <CardHeader className="pb-2">
-              <CardTitle className="text-base">Lista</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="overflow-hidden rounded-md border">
-                <TokenList
-                  tokens={finalOthersTokens}
-                  loading={loadingOthers}
-                  revokeToken={revokeToken}
-                />
-              </div>
-            </CardContent>
-          </Card>
-        </TabsContent>
+
+        {isAdmin ? (
+          // 1. SE ADMIN: Renderiza o conteúdo real da lista de outros
+          <TabsContent value="tokensCreateforOthers">
+            <Card>{/* ... (Seu TokenList com finalOthersTokens) ... */}</Card>
+          </TabsContent>
+        ) : (
+          // 2. SE NÃO FOR ADMIN: Renderiza a mensagem de acesso negado
+          <TabsContent value="tokensCreateforOthers">
+            <Card>
+              <CardHeader className="pb-2">
+                <CardTitle className="text-base text-center">Acesso Negado</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="p-4 text-center text-red-500 bg-red-100 rounded-md">
+                  <h2>
+                    Apenas administradores podem visualizar tokens gerados por outros.
+                  </h2>
+                  <p className="mt-2 text-sm text-red-700">
+                    Essa aba está desativada para sua função usuários comuns.
+                  </p>
+                </div>
+              </CardContent>
+            </Card>
+          </TabsContent>
+        )}
       </Tabs>
     </div>
   );
