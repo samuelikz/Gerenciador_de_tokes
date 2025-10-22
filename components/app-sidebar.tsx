@@ -117,9 +117,7 @@ export function AppSidebar({
     };
   }, []); // Executa apenas na montagem
 
-  // 1. Determina o isAdmin baseando-se no estado 'me'
   const isAdminDetected = me?.role === "ADMIN";
-  // Permite que uma prop externa (se for o caso) sobrescreva o valor
   const isAdmin =
     typeof isAdminProp === "boolean" ? isAdminProp : isAdminDetected;
 
