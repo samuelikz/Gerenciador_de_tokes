@@ -238,10 +238,6 @@ export default function TokensPage() {
     return applyFilterAndSort(myTokens, query);
   }, [myTokens, query]); // NOVO: Lista final (busca + ordem) para Outros Tokens
 
-  const finalOthersTokens = React.useMemo(() => {
-    return applyFilterAndSort(othersTokens, query);
-  }, [othersTokens, query]);
-
   const refreshAll = React.useCallback(async () => {
     await load();
     if (isAdmin) {
@@ -353,8 +349,6 @@ export default function TokensPage() {
     a.click();
     URL.revokeObjectURL(url);
   }
-
-  const loadingAny = loadingMine || loadingOthers;
 
   return (
     <div className="flex flex-col gap-6 px-4 lg:px-6">

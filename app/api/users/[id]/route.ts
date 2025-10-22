@@ -5,17 +5,14 @@ export const dynamic = "force-dynamic"; export const revalidate = 0; export cons
 const API = process.env.NEXT_PUBLIC_API_BASE_URL || "http://localhost:3333";
 const AUTH_COOKIE = process.env.AUTH_COOKIE_NAME || "accessToken";
 
-// 🛑 CORREÇÃO: Usamos a tipagem assíncrona que o Next.js está exigindo 
-// e aplicamos await na desestruturação.
+
 export async function PATCH(
   req: NextRequest, 
-  context: { params: Promise<{ id: string }> } // ⬅️ Tipagem problemática que resolve o erro
+  context: { params: { id: string } } 
 ) {
-  // 🛑 RESOLVEMOS A PROMISE AQUI: Obtemos o ID via await
-  const { id } = await context.params; 
+  const { id } = context.params;
   
-  // @ts-ignore
-  const token = cookies().get(AUTH_COOKIE)?.value; 
+  const token = (await cookies()).get(AUTH_COOKIE)?.value
   
   if (!token) return NextResponse.json({ success:false, error:{ message:"Não autenticado" } }, { status:401 });
 
@@ -26,8 +23,15 @@ export async function PATCH(
     body: JSON.stringify(body),
   });
   
-  let j: any = {}; 
-  try { j = await resp.json() } catch {}
+  let j: unknown = {}; 
+  try { 
+    j = await resp.json(); 
+  } catch {}
   
-  return NextResponse.json({ success: resp.ok, data: j?.data ?? j?.user ?? j }, { status: resp.status });
+  const responseData = j as Record<string, unknown>;
+  
+  return NextResponse.json(
+    { success: resp.ok, data: responseData?.data ?? responseData?.user ?? responseData }, 
+    { status: resp.status }
+  );
 }

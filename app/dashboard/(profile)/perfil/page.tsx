@@ -7,14 +7,12 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import {
-  IconUserCircle,
   IconMail,
   IconBriefcase,
   IconCalendar,
 } from "@tabler/icons-react";
 
 // --- TIPOS DE DADOS ---
-type Role = "ADMIN" | "USER";
 
 type UserData = {
   id: string | number;
@@ -36,14 +34,6 @@ function getErrorMessage(err: unknown, fallback = "Ocorreu um erro"): string {
   if (err instanceof Error) return err.message;
   if (typeof err === "string") return err;
   return fallback;
-}
-
-async function readJson<T>(res: Response): Promise<T | null> {
-  try {
-    return (await res.json()) as T;
-  } catch {
-    return null;
-  }
 }
 
 function fmtDate(d?: unknown) {

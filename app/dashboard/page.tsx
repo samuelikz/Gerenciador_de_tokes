@@ -1,13 +1,7 @@
 // app/dashboard/page.tsx
 "use client"
 
-import dynamic from "next/dynamic"
 import { SectionCards } from "@/components/section-cards"
-
-const ChartAreaInteractive = dynamic(
-  () => import("@/components/chart-area-interactive").then(m => m.ChartAreaInteractive),
-  { ssr: false }
-)
 
 export default function Page() {
   return (
