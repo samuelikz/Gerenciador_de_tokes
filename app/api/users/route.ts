@@ -8,7 +8,6 @@ export const runtime = "nodejs";
 const API = process.env.NEXT_PUBLIC_API_BASE_URL || "http://localhost:3333";
 const AUTH_COOKIE = process.env.AUTH_COOKIE_NAME || "accessToken";
 
-// 🛑 FUNÇÃO AUXILIAR PARA CONTORNAR O ERRO DE TIPAGEM DO COOKIES
 async function getAuthToken() {
   const token = (await cookies()).get(AUTH_COOKIE)?.value;
   return token;

@@ -232,11 +232,15 @@ export default function TokensPage() {
       const eb = toMs(b.expiresAt);
       return ea - eb;
     });
-  }; // NOVO: Lista final (busca + ordem) para Minhas Criações
+  }; 
 
   const finalMyTokens = React.useMemo(() => {
     return applyFilterAndSort(myTokens, query);
-  }, [myTokens, query]); // NOVO: Lista final (busca + ordem) para Outros Tokens
+  }, [myTokens, query]);  
+ 
+  const finalOthersTokens = React.useMemo(() => {
+    return applyFilterAndSort(othersTokens, query);
+  }, [othersTokens, query]);
 
   const refreshAll = React.useCallback(async () => {
     await load();
@@ -257,7 +261,7 @@ export default function TokensPage() {
         throw new Error(extractApiMessage(body) ?? "Falha ao revogar token");
       }
       toast.success("Token revogado");
-      await refreshAll(); // 🛑 USO DA FUNÇÃO UNIFICADA
+      await refreshAll();
     } catch (err: unknown) {
       toast.error(getErrorMessage(err, "Erro ao revogar"));
     }
@@ -319,7 +323,7 @@ export default function TokensPage() {
       setExpiresDate("");
       setDescription("");
 
-      await refreshAll(); // 🛑 USO DA FUNÇÃO UNIFICADA
+      await refreshAll(); 
     } catch (err: unknown) {
       toast.error(getErrorMessage(err, "Erro ao criar token"));
     } finally {
@@ -534,17 +538,47 @@ export default function TokensPage() {
           </Card>
         </TabsContent>
 
-        {isAdmin ? (
-          // 1. SE ADMIN: Renderiza o conteúdo real da lista de outros
+                {isAdmin ? (
           <TabsContent value="tokensCreateforOthers">
-            <Card>{/* ... (Seu TokenList com finalOthersTokens) ... */}</Card>
+            {othersTokens.length === 0 && !loadingOthers ? (
+              <Card>
+                <CardContent>
+                  <div className="p-6 text-center text-yellow-600 bg-yellow-50 rounded-md border border-yellow-200">
+                    <p className="font-medium">
+                      Nenhum token encontrado.
+                    </p>
+                    <p className="text-sm text-yellow-700 mt-1">
+                      Nenhum token foi criado por outros usuários até o momento.
+                    </p>
+                  </div>
+                </CardContent>
+              </Card>
+            ) : (
+              <Card>
+                <CardHeader className="pb-2">
+                  <CardTitle className="text-base">
+                    Tokens criados por outros usuários
+                  </CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <div className="overflow-hidden rounded-md border">
+                    <TokenList
+                      tokens={finalOthersTokens}
+                      loading={loadingOthers}
+                      revokeToken={revokeToken}
+                    />
+                  </div>
+                </CardContent>
+              </Card>
+            )}
           </TabsContent>
         ) : (
-          // 2. SE NÃO FOR ADMIN: Renderiza a mensagem de acesso negado
           <TabsContent value="tokensCreateforOthers">
             <Card>
               <CardHeader className="pb-2">
-                <CardTitle className="text-base text-center">Acesso Negado</CardTitle>
+                <CardTitle className="text-base text-center">
+                  Acesso Negado
+                </CardTitle>
               </CardHeader>
               <CardContent>
                 <div className="p-4 text-center text-red-500 bg-red-100 rounded-md">
