@@ -23,7 +23,7 @@ type ListItems = {
 type UserBody = { scope?: string; tokenId?: string; [key: string]: unknown };
 
 export async function GET() {
-  const token = await getAuthToken(); // ⬅️ Usa a função auxiliar
+  const token = await getAuthToken();
 
   if (!token) {
     return NextResponse.json(
@@ -37,12 +37,12 @@ export async function GET() {
     cache: "no-store",
   });
 
-  let body: unknown = {}; // ⬅️ Tipagem para unknown
+  let body: unknown = {}; 
   try {
     body = await resp.json();
   } catch {}
 
-  const bodyAsList = body as ListItems; // Tipagem para auxiliar na extração
+  const bodyAsList = body as ListItems; 
 
   // Normaliza para array de itens
   const items = Array.isArray(bodyAsList?.items)
@@ -58,7 +58,7 @@ export async function GET() {
 }
 
 export async function POST(req: NextRequest) {
-  const token = await getAuthToken(); // ⬅️ Usa a função auxiliar
+  const token = await getAuthToken(); 
 
   if (!token) {
     return NextResponse.json(
@@ -67,7 +67,6 @@ export async function POST(req: NextRequest) {
     );
   }
 
-  // 🛑 CORREÇÃO ANY: Tipagem segura de entrada
   const json = (await req.json().catch(() => null)) as UserBody | null;
 
   if (!json?.email || !json.name || !json.password) {
@@ -93,7 +92,7 @@ export async function POST(req: NextRequest) {
     body: JSON.stringify(json),
   });
 
-  let body: unknown = {}; // ⬅️ Tipagem para unknown
+  let body: unknown = {}; 
   try {
     body = await resp.json();
   } catch {}
@@ -111,8 +110,7 @@ export async function POST(req: NextRequest) {
 }
 
 export async function DELETE(req: NextRequest) {
-  const token = await getAuthToken(); // ⬅️ Usa a função auxiliar
-
+  const token = await getAuthToken(); 
   if (!token) {
     return NextResponse.json(
       { success: false, error: { message: "Não autenticado" } },
@@ -120,7 +118,7 @@ export async function DELETE(req: NextRequest) {
     );
   }
 
-  // 🛑 CORREÇÃO ANY: Tipagem segura de entrada
+
   const json = (await req.json().catch(() => null)) as {
     tokenId?: string;
   } | null;
@@ -141,7 +139,7 @@ export async function DELETE(req: NextRequest) {
     body: JSON.stringify({ tokenId: json.tokenId }),
   });
 
-  let body: unknown = {}; // ⬅️ Tipagem para unknown
+  let body: unknown = {}; 
   try {
     body = await resp.json();
   } catch {}
