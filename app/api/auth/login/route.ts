@@ -1,4 +1,3 @@
-// app/api/auth/login/route.ts
 import { NextResponse } from "next/server";
 
 export const dynamic = "force-dynamic";
@@ -7,7 +6,6 @@ export const runtime = "nodejs";
 
 const API_URL = process.env.NEXT_PUBLIC_API_BASE_URL!;
 const COOKIE_NAME = process.env.AUTH_COOKIE_NAME || "accessToken";
-// use env própria p/ controlar o atributo Secure
 const SECURE_COOKIES = (process.env.COOKIE_SECURE ?? "false") === "true";
 
 export async function POST(req: Request) {
@@ -42,8 +40,8 @@ export async function POST(req: Request) {
 
   reply.cookies.set(COOKIE_NAME, token, {
     httpOnly: true,
-    sameSite: "lax",        // se front e API forem domínios diferentes em produção, use 'none' + SECURE_COOKIES=true
-    secure: SECURE_COOKIES, // <- controle por env
+    sameSite: "lax",       
+    secure: SECURE_COOKIES, 
     path: "/",
     maxAge: 60 * 60,
   });
