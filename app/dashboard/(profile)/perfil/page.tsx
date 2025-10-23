@@ -2,33 +2,36 @@
 
 import * as React from "react";
 import { toast } from "sonner";
-
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import {
   IconMail,
   IconBriefcase,
   IconCalendar,
+  IconEdit,
 } from "@tabler/icons-react";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from "@/components/ui/dialog";
+import EditProfileForm from "@/components/edit-profile";
 
 // --- TIPOS DE DADOS ---
-
+type Role = "ADMIN" | "USER";
 type UserData = {
   id: string | number;
   email?: string;
   role?: string;
   name?: string;
   avatar?: string | null;
-  createdAt?: string; // Adicionado para exibição
+  createdAt?: string;
+  // Adicione outras propriedades necessárias para PATCH
 };
-
-type MeResponse =
-  | { success: true; data: UserData }
-  | { success: false; message: string };
-
-// --- FUNÇÕES DE UTILIDADE (Assumindo que existem globalmente ou serão definidas) ---
-// Em um projeto real, você precisaria importar essas funções de um arquivo utilitário.
+type MeResponse = | { success: true; data: UserData } | { success: false; message: string };
 
 function getErrorMessage(err: unknown, fallback = "Ocorreu um erro"): string {
   if (err instanceof Error) return err.message;
@@ -53,54 +56,51 @@ function fmtDate(d?: unknown) {
   }
 }
 
+// Assumindo que readJson está definido globalmente ou importado
+async function readJson<T>(res: Response): Promise<T | null> {
+    try { return (await res.json()) as T } catch { return null }
+}
+
+
 export default function PerfilPage() {
-  // 🛑 ESTADO DO USUÁRIO
   const [me, setMe] = React.useState<UserData | null>(null);
   const [loading, setLoading] = React.useState(true);
+  const [openEdit, setOpenEdit] = React.useState(false); 
+
+  // 🛑 FUNÇÃO CENTRALIZADA DE RECARGA: Extrai a lógica do useEffect
+  const reloadProfile = React.useCallback(async () => {
+    setLoading(true);
+    try {
+      const res = await fetch(`/api/users/me/profile`, {
+        credentials: "include",
+        cache: "no-store",
+      });
+
+      const json = (await readJson<MeResponse>(res)) || ({ success: false } as MeResponse);
+
+      if (json.success) {
+        const d = json.data;
+        setMe({
+          id: d.id,
+          email: d.email,
+          role: d.role,
+          name: d.name ?? (d.email ? d.email.split("@")[0] : undefined),
+          avatar: d.avatar ?? null,
+          createdAt: d.createdAt,
+        });
+      } else {
+        toast.error("Sessão expirada. Faça login novamente.");
+      }
+    } catch (e) {
+      toast.error(getErrorMessage(e, "Erro ao carregar perfil."));
+    } finally {
+      setLoading(false);
+    }
+  }, []);
 
   React.useEffect(() => {
-    let mounted = true;
-
-    (async () => {
-      try {
-        // 1. FETCH para a rota de perfil (proxy para leitura de cookie)
-        const res = await fetch(`/api/users/me/profile`, {
-          credentials: "include",
-          cache: "no-store",
-        });
-
-        const json = (await res.json().catch(() => ({}))) as MeResponse;
-
-        if (!mounted) return;
-
-        // 2. PROCESSAMENTO E setMe
-        if (json && "success" in json && json.success) {
-          const d = json.data;
-
-          setMe({
-            id: d.id,
-            email: d.email,
-            role: d.role,
-            name: d.name ?? (d.email ? d.email.split("@")[0] : undefined),
-            avatar: d.avatar ?? null,
-            createdAt: d.createdAt,
-          });
-        } else {
-          // Se falhar (401, 403, ou sucesso: false), direciona para o login
-          toast.error("Sessão expirada. Faça login novamente.");
-          // router.replace("/login"); // Adicione roteamento se necessário
-        }
-      } catch (e) {
-        toast.error(getErrorMessage(e, "Erro ao carregar perfil."));
-      } finally {
-        if (mounted) setLoading(false);
-      }
-    })();
-
-    return () => {
-      mounted = false;
-    };
-  }, []);
+    reloadProfile();
+  }, [reloadProfile]);
 
   // Lógica para obter as iniciais
   const initials = React.useMemo(() => {
@@ -116,26 +116,57 @@ export default function PerfilPage() {
     );
   }, [me?.name, me?.email]);
 
+  // Se o usuário não for carregado, não renderiza
+  if (!me && !loading) {
+      return (
+          <div className="flex flex-col gap-6 px-4 lg:px-6">
+              <h1 className="text-3xl font-semibold text-red-500">Erro de Acesso</h1>
+              <p className="text-muted-foreground">Não foi possível carregar os dados do seu perfil. Tente recarregar a página.</p>
+          </div>
+      );
+  }
+
   return (
     <div className="flex flex-col gap-6 px-4 lg:px-6">
       <h1 className="text-3xl font-semibold">Minha Conta</h1>
 
       <Card className="w-full max-w-lg mx-auto">
         <CardHeader>
-          <div className="flex items-center gap-4">
-            <Avatar className="h-16 w-16">
-              <AvatarImage
-                src={me?.avatar || "/avatars/shadcn.jpg"}
-                alt={me?.name || "Usuário"}
-              />
-              <AvatarFallback>{initials}</AvatarFallback>
-            </Avatar>
-            <div>
-              <CardTitle className="text-xl">
-                {loading ? "Carregando..." : me?.name || "Usuário Desconhecido"}
-              </CardTitle>
-              <p className="text-sm text-muted-foreground">{me?.email}</p>
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-4">
+              <Avatar className="h-16 w-16">
+                <AvatarImage src={me?.avatar || "/avatars/shadcn.jpg"} alt={me?.name || "Usuário"} />
+                <AvatarFallback>{initials}</AvatarFallback>
+              </Avatar>
+              <div>
+                <CardTitle className="text-xl">
+                  {loading ? "Carregando..." : me?.name || "Usuário"}
+                </CardTitle>
+                <p className="text-sm text-muted-foreground">{me?.email}</p>
+              </div>
             </div>
+            {/* Botão de Edição que abre o modal */}
+            <Dialog open={openEdit} onOpenChange={setOpenEdit}>
+              <DialogTrigger asChild>
+                <Button variant="outline" size="icon" className="shrink-0">
+                    <IconEdit className="size-4" />
+                </Button>
+              </DialogTrigger>
+              <DialogContent className="sm:max-w-md">
+                <DialogHeader>
+                  <DialogTitle>Editar Perfil</DialogTitle>
+                </DialogHeader>
+                {/* 🛑 COMPONENTE FILHO INJETADO AQUI */}
+                <EditProfileForm 
+                    initialData={me} 
+                    onSuccess={() => {
+                        setOpenEdit(false);
+                        reloadProfile(); // Recarrega os dados APÓS edição
+                    }} 
+                />
+              </DialogContent>
+            </Dialog>
+            {/* Fim do Modal */}
           </div>
         </CardHeader>
         <CardContent className="grid gap-4">
@@ -160,10 +191,6 @@ export default function PerfilPage() {
                 <span className="font-medium">Membro desde:</span>
                 <span>{fmtDate(me?.createdAt) || "—"}</span>
               </div>
-
-              <div className="mt-4 flex justify-end">
-                <Button variant="outline">Editar Perfil</Button>
-              </div>
             </>
           )}
         </CardContent>
@@ -171,3 +198,7 @@ export default function PerfilPage() {
     </div>
   );
 }
+
+// ----------------------------------------------------
+// 🛑 NOVO ARQUIVO: components/edit-profile-form.jsx
+// ----------------------------------------------------

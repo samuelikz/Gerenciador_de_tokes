@@ -123,14 +123,6 @@ export function NavUser({
                   <span>Minha Conta</span>
                 </a>
               </DropdownMenuItem>
-              <DropdownMenuItem>
-                <IconCreditCard />
-                Pagamentos
-              </DropdownMenuItem>
-              <DropdownMenuItem>
-                <IconNotification />
-                Notificações
-              </DropdownMenuItem>
             </DropdownMenuGroup>
 
             <DropdownMenuSeparator />
