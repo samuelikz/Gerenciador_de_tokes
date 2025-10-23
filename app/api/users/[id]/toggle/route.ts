@@ -8,17 +8,12 @@ export const runtime = "nodejs";
 const API = process.env.NEXT_PUBLIC_API_BASE_URL || "http://localhost:3333";
 const AUTH_COOKIE = process.env.AUTH_COOKIE_NAME || "accessToken";
 
-/**
- * Handler responsável por receber o PATCH da client page,
- * repassar o token do cookie e encaminhar para a API externa.
- */
 export async function PATCH(
   req: NextRequest,
   context: { params: Promise<{ id: string }> }
 ) {
   const { id } = await context.params;
 
-  // Busca o token armazenado nos cookies
   const token = (await cookies()).get(AUTH_COOKIE)?.value;
   if (!token) {
     return NextResponse.json(
@@ -37,7 +32,7 @@ export async function PATCH(
         Authorization: `Bearer ${token}`,
         "Content-Type": "application/json",
       },
-      redirect: "manual", // Evita redirecionamentos 30x automáticos
+      redirect: "manual", 
       body: JSON.stringify(body),
     });
 

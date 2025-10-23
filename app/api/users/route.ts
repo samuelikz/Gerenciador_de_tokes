@@ -13,7 +13,6 @@ async function getAuthToken() {
   return token;
 }
 
-// --- TIPOS DE CORPO ---
 type UserData = unknown;
 type ListItems = {
   items?: UserData[];
@@ -44,7 +43,6 @@ export async function GET() {
 
   const bodyAsList = body as ListItems; 
 
-  // Normaliza para array de itens
   const items = Array.isArray(bodyAsList?.items)
     ? bodyAsList.items
     : Array.isArray(bodyAsList?.data)
@@ -70,7 +68,6 @@ export async function POST(req: NextRequest) {
   const json = (await req.json().catch(() => null)) as UserBody | null;
 
   if (!json?.email || !json.name || !json.password) {
-    // Adicionando validação básica de campos
     return NextResponse.json(
       {
         success: false,

@@ -421,7 +421,7 @@ export default function TokensPage() {
                 </div>
 
                 <div className="grid gap-1.5">
-                  <Label htmlFor="expires">Expira em (opcional)</Label>
+                  <Label htmlFor="expires">Expira em <span className="!text-red-400">*</span></Label>
                   <Input
                     id="expires"
                     type="date"
@@ -432,7 +432,7 @@ export default function TokensPage() {
                 </div>
 
                 <div className="grid gap-1.5">
-                  <Label htmlFor="desc">Descrição (opcional)</Label>
+                  <Label htmlFor="desc">Descrição</Label>
                   <Input
                     id="desc"
                     placeholder="Ex.: Chave de leitura para integração X"

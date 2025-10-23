@@ -67,7 +67,6 @@ export default function PerfilPage() {
   const [loading, setLoading] = React.useState(true);
   const [openEdit, setOpenEdit] = React.useState(false); 
 
-  // 🛑 FUNÇÃO CENTRALIZADA DE RECARGA: Extrai a lógica do useEffect
   const reloadProfile = React.useCallback(async () => {
     setLoading(true);
     try {
@@ -102,7 +101,6 @@ export default function PerfilPage() {
     reloadProfile();
   }, [reloadProfile]);
 
-  // Lógica para obter as iniciais
   const initials = React.useMemo(() => {
     return (
       me?.name
@@ -116,7 +114,6 @@ export default function PerfilPage() {
     );
   }, [me?.name, me?.email]);
 
-  // Se o usuário não for carregado, não renderiza
   if (!me && !loading) {
       return (
           <div className="flex flex-col gap-6 px-4 lg:px-6">
@@ -130,7 +127,7 @@ export default function PerfilPage() {
     <div className="flex flex-col gap-6 px-4 lg:px-6">
       <h1 className="text-3xl font-semibold">Minha Conta</h1>
 
-      <Card className="w-full max-w-lg mx-auto">
+      <Card className="w-full max-w-lg m-none">
         <CardHeader>
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-4">
@@ -156,23 +153,21 @@ export default function PerfilPage() {
                 <DialogHeader>
                   <DialogTitle>Editar Perfil</DialogTitle>
                 </DialogHeader>
-                {/* 🛑 COMPONENTE FILHO INJETADO AQUI */}
                 <EditProfileForm 
                     initialData={me} 
                     onSuccess={() => {
                         setOpenEdit(false);
-                        reloadProfile(); // Recarrega os dados APÓS edição
+                        reloadProfile(); 
                     }} 
                 />
               </DialogContent>
             </Dialog>
-            {/* Fim do Modal */}
           </div>
         </CardHeader>
         <CardContent className="grid gap-4">
           {loading ? (
             <div className="text-center text-muted-foreground">
-              Carregando detalhes do perfil...
+              Carregando...
             </div>
           ) : (
             <>
@@ -198,7 +193,3 @@ export default function PerfilPage() {
     </div>
   );
 }
-
-// ----------------------------------------------------
-// 🛑 NOVO ARQUIVO: components/edit-profile-form.jsx
-// ----------------------------------------------------

@@ -9,7 +9,6 @@ const API_BASE =
   process.env.NEXT_PUBLIC_API_BASE_URL || "http://localhost:3333";
 const AUTH_COOKIE = process.env.AUTH_COOKIE_NAME || "accessToken";
 
-// --- TIPOS DE RESPOSTA (Simplificados) ---
 type ListItems = {
   items?: unknown[];
   data?: unknown[];
@@ -22,7 +21,7 @@ async function getAuthToken() {
 }
 
 export async function GET() {
-  const token = await getAuthToken(); // ⬅️ Usa a função auxiliar
+  const token = await getAuthToken();
 
   if (!token) {
     return NextResponse.json(
@@ -32,27 +31,23 @@ export async function GET() {
   }
 
   const resp = await fetch(`${API_BASE}/tokensall`, {
-    // ⬅️ Rota para todos os tokens
     headers: { Authorization: `Bearer ${token}`, Accept: "application/json" },
     cache: "no-store",
   });
 
-  let body: unknown = {}; // ⬅️ CORREÇÃO: Usando unknown
+  let body: unknown = {}; 
   try {
     body = await resp.json();
   } catch {}
 
-  // Tipagem para auxiliar na extração
   const bodyAsList = body as ListItems;
 
-  // Extração segura de itens de 'items' ou 'data'. Se nada vier, retorna [].
   const items = Array.isArray(bodyAsList?.items)
     ? bodyAsList.items
     : Array.isArray(bodyAsList?.data)
     ? bodyAsList.data
     : [];
 
-  // Retorna a lista para o Front-end
   return NextResponse.json(
     { success: resp.ok, data: items },
     { status: resp.status }
