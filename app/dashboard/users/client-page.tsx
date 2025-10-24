@@ -46,26 +46,32 @@ type CreateResp = {
   user?: ApiUser;
 } & ApiErrorShape;
 
-type UpdateResp = { 
-    success?: boolean; 
-    data?: ApiUser; 
-    user?: ApiUser; 
+type UpdateResp = {
+  success?: boolean;
+  data?: ApiUser;
+  user?: ApiUser;
 } & ApiErrorShape;
 
 // --- FUNÇÕES DE UTILIDADE ---
 
+type WithToString = { toString(): string };
+
 function fmtDate(d?: unknown) {
   if (d == null) return "—";
-  let dt: Date;
+  let dt: Date | null = null;
+
   if (typeof d === "string" || typeof d === "number") dt = new Date(d);
   else if (d instanceof Date) dt = d;
-  else if (typeof (d as any)?.toString === "function") dt = new Date((d as any).toString());
-  else return "—";
-  
-  if (Number.isNaN(dt.getTime())) return "—";
+  else if ((d as WithToString) && typeof (d as WithToString).toString === "function") {
+    dt = new Date((d as WithToString).toString());
+  }
+
+  if (!dt || Number.isNaN(dt.getTime())) return "—";
   try {
     return new Intl.DateTimeFormat("pt-BR", { dateStyle: "short", timeStyle: "short" }).format(dt);
-  } catch { return "—"; }
+  } catch {
+    return "—";
+  }
 }
 
 function getErrorMessage(err: unknown, fallback = "Ocorreu um erro"): string {
@@ -75,7 +81,11 @@ function getErrorMessage(err: unknown, fallback = "Ocorreu um erro"): string {
 }
 
 async function readJson<T>(res: Response): Promise<T | null> {
-  try { return (await res.json()) as T } catch { return null; }
+  try {
+    return (await res.json()) as T;
+  } catch {
+    return null;
+  }
 }
 
 function extractApiMessage(body: unknown): string | null {
@@ -97,25 +107,25 @@ export default function UsersClientPage() {
 
   // --- ESTADOS ---
   // Tabela
-  const [query, setQuery] = React.useState("");
-  const [loading, setLoading] = React.useState(false);
+  const [query, setQuery] = React.useState<string>("");
+  const [loading, setLoading] = React.useState<boolean>(false);
   const [items, setItems] = React.useState<ApiUser[]>([]);
-  const [loaded, setLoaded] = React.useState(false);
+  const [loaded, setLoaded] = React.useState<boolean>(false);
 
   // Criar Usuário
-  const [openCreate, setOpenCreate] = React.useState(false);
-  const [creating, setCreating] = React.useState(false);
-  const [name, setName] = React.useState("");
-  const [email, setEmail] = React.useState("");
+  const [openCreate, setOpenCreate] = React.useState<boolean>(false);
+  const [creating, setCreating] = React.useState<boolean>(false);
+  const [name, setName] = React.useState<string>("");
+  const [email, setEmail] = React.useState<string>("");
   const [role, setRole] = React.useState<Role>("USER");
-  const [password, setPassword] = React.useState("");
+  const [password, setPassword] = React.useState<string>("");
 
   // --- LÓGICA DE CARREGAMENTO E FILTRO ---
 
   const load = React.useCallback(async () => {
     setLoading(true);
     try {
-      const res = await fetch("/api/users", { method: "GET", cache: "no-store" });
+      const res = await fetch("/api/users", { method: "GET", cache: "no-store", credentials: "include" });
       const body = await readJson<ListResp>(res);
 
       if (!res.ok || body?.success === false) {
@@ -128,7 +138,6 @@ export default function UsersClientPage() {
         ? body!.items!
         : [];
 
-      // Normalização de dados (garante tipos corretos)
       const norm = list.map((u) => ({
         ...u,
         createdAt: typeof u.createdAt === "string" ? u.createdAt : null,
@@ -144,7 +153,9 @@ export default function UsersClientPage() {
     }
   }, []);
 
-  React.useEffect(() => { load() }, [load]);
+  React.useEffect(() => {
+    void load();
+  }, [load]);
 
   const filtered = React.useMemo(() => {
     if (!query.trim()) return items;
@@ -153,7 +164,7 @@ export default function UsersClientPage() {
       (u) =>
         (u.name ?? "").toLowerCase().includes(q) ||
         (u.email ?? "").toLowerCase().includes(q) ||
-        (u.role ?? "").toLowerCase().includes(q)
+        (u.role as string).toLowerCase().includes(q)
     );
   }, [items, query]);
 
@@ -161,14 +172,20 @@ export default function UsersClientPage() {
     return [...filtered].sort((a, b) => {
       // ADMINs primeiro
       if (a.role !== b.role) return a.role === "ADMIN" ? -1 : 1;
-      // Ordena por nome alfabeticamente
+      // Ordena por nome
       return (a.name || "").localeCompare(b.name || "");
     });
   }, [filtered]);
 
+  // --- HANDLERS DE INPUT TIPADOS ---
+  const onQueryChange = (e: React.ChangeEvent<HTMLInputElement>) => setQuery(e.target.value);
+  const onNameChange = (e: React.ChangeEvent<HTMLInputElement>) => setName(e.target.value);
+  const onEmailChange = (e: React.ChangeEvent<HTMLInputElement>) => setEmail(e.target.value);
+  const onPasswordChange = (e: React.ChangeEvent<HTMLInputElement>) => setPassword(e.target.value);
+
   // --- FUNÇÕES DE AÇÃO ---
 
-  async function createUser(e: React.FormEvent) {
+  async function createUser(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
     if (!isAdmin) return toast.error("Apenas administradores podem criar usuários.");
     if (!name.trim()) return toast.error("Nome é obrigatório.");
@@ -180,6 +197,7 @@ export default function UsersClientPage() {
       const res = await fetch("/api/users", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
+        credentials: "include",
         body: JSON.stringify({ name, email, role, password }),
       });
       const body = await readJson<CreateResp>(res);
@@ -188,8 +206,11 @@ export default function UsersClientPage() {
       }
       toast.success("Usuário criado");
       setOpenCreate(false);
-      setName(""); setEmail(""); setPassword(""); setRole("USER");
-      await load(); // Recarrega a lista
+      setName("");
+      setEmail("");
+      setPassword("");
+      setRole("USER");
+      await load();
     } catch (err) {
       toast.error(getErrorMessage(err, "Erro ao criar usuário"));
     } finally {
@@ -199,58 +220,54 @@ export default function UsersClientPage() {
 
   async function toggleActive(user: ApiUser) {
     if (!isAdmin) return toast.error("Apenas administradores podem alterar status.");
-    
+
     const novoIsActive = !user.isActive;
-    
+
     try {
-      const res = await fetch(`/api/users/toggle`, { // Rota limpa, sem o ID na URL
-        method: "PATCH", 
-        headers: { "Content-Type": "application/json" }, 
-        body: JSON.stringify({ 
-            userId: user.id,        
-        }),
+      const res = await fetch(`/api/users/toggle`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        redirect: "manual",
+        body: JSON.stringify({ userId: user.id }),
       });
-      
-      
+
       if (res.status === 307 || res.status === 302) {
-          throw new Error("Erro de roteamento (307/302). Verifique a barra final da URL do fetch.");
+        throw new Error("Erro de roteamento (307/302). Verifique a barra final da URL do fetch.");
       }
 
       const body = await readJson<UpdateResp>(res);
-      
       if (!res.ok || body?.success === false) {
-
         throw new Error(extractApiMessage(body) ?? "Falha ao alterar status");
       }
-      
+
       toast.success(novoIsActive ? "Usuário ativado" : "Usuário desativado");
-      await load(); // Recarrega a lista
-      
+      await load();
     } catch (err) {
       toast.error(getErrorMessage(err, "Erro ao alterar status"));
     }
-}
+  }
 
   async function changeRole(user: ApiUser, nextRole: Role) {
     if (!isAdmin) return toast.error("Apenas administradores podem alterar o papel.");
     if (user.role === nextRole) return;
-    
+
     try {
-      const res = await fetch(`/api/users/${user.id}`, { 
-        method: "PATCH", 
-        headers: { "Content-Type": "application/json" }, 
-        body: JSON.stringify({ role: nextRole }),
-        credentials: 'include',
+      const res = await fetch(`/api/users/${user.id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
         redirect: "manual",
+        body: JSON.stringify({ role: nextRole }),
       });
 
       const body = await readJson<UpdateResp>(res);
       if (!res.ok || body?.success === false) {
         throw new Error(extractApiMessage(body) ?? "Falha ao alterar papel");
       }
-      
+
       toast.success(`Papel alterado para ${nextRole}`);
-      await load(); // Recarrega a lista
+      await load();
     } catch (err) {
       toast.error(getErrorMessage(err, "Erro ao alterar papel"));
     }
@@ -268,7 +285,7 @@ export default function UsersClientPage() {
               className="pl-8 w-64"
               placeholder="Buscar por nome, e-mail ou papel…"
               value={query}
-              onChange={(e) => setQuery(e.target.value)}
+              onChange={onQueryChange}
             />
           </div>
           <Button
@@ -277,10 +294,11 @@ export default function UsersClientPage() {
             onClick={load}
             disabled={loading}
             className="cursor-pointer"
+            aria-label="Recarregar lista"
           >
             <IconReload className={loading ? "size-4 animate-spin" : "size-4"} />
           </Button>
-          
+
           {/* DIALOG DE CRIAR USUÁRIO */}
           {isAdmin && (
             <Dialog open={openCreate} onOpenChange={setOpenCreate}>
@@ -294,14 +312,13 @@ export default function UsersClientPage() {
                   <DialogTitle>Criar novo usuário</DialogTitle>
                 </DialogHeader>
                 <form onSubmit={createUser} className="grid gap-4">
-                  {/* Campos do formulário... */}
                   <div className="grid gap-1.5">
                     <Label htmlFor="name">Nome</Label>
-                    <Input id="name" value={name} onChange={(e) => setName(e.target.value)} />
+                    <Input id="name" value={name} onChange={onNameChange} />
                   </div>
                   <div className="grid gap-1.5">
                     <Label htmlFor="email">E-mail</Label>
-                    <Input id="email" type="email" value={email} onChange={(e) => setEmail(e.target.value)} />
+                    <Input id="email" type="email" value={email} onChange={onEmailChange} />
                   </div>
                   <div className="grid gap-1.5">
                     <Label htmlFor="role">Papel</Label>
@@ -317,10 +334,21 @@ export default function UsersClientPage() {
                   </div>
                   <div className="grid gap-1.5">
                     <Label htmlFor="password">Senha</Label>
-                    <Input id="password" type="password" value={password} onChange={(e) => setPassword(e.target.value)} placeholder="Mínimo 6 caracteres" />
+                    <Input
+                      id="password"
+                      type="password"
+                      value={password}
+                      onChange={onPasswordChange}
+                      placeholder="Mínimo 6 caracteres"
+                    />
                   </div>
                   <DialogFooter>
-                    <Button type="button" variant="outline" onClick={() => setOpenCreate(false)} className="cursor-pointer">
+                    <Button
+                      type="button"
+                      variant="outline"
+                      onClick={() => setOpenCreate(false)}
+                      className="cursor-pointer"
+                    >
                       Cancelar
                     </Button>
                     <Button type="submit" disabled={creating} className="cursor-pointer">
@@ -333,7 +361,7 @@ export default function UsersClientPage() {
           )}
         </div>
       </div>
-      
+
       {/* TABELA DE USUÁRIOS */}
       <Card>
         <CardHeader className="pb-2">
@@ -361,7 +389,9 @@ export default function UsersClientPage() {
                         <TableCell className="font-medium">{u.name || "—"}</TableCell>
                         <TableCell className="hidden sm:table-cell">{u.email || "—"}</TableCell>
                         <TableCell className="hidden md:table-cell">
-                          <Badge variant="outline" className="px-2">{u.role}</Badge>
+                          <Badge variant="outline" className="px-2">
+                            {u.role}
+                          </Badge>
                         </TableCell>
                         <TableCell className="hidden lg:table-cell">{fmtDate(u.createdAt)}</TableCell>
                         <TableCell className="hidden lg:table-cell">
@@ -381,12 +411,18 @@ export default function UsersClientPage() {
                             </DropdownMenuTrigger>
                             <DropdownMenuContent align="end">
                               {/* Alterar Papel */}
-                              <DropdownMenuItem onClick={() => changeRole(u, u.role === "ADMIN" ? "USER" : "ADMIN")} className="cursor-pointer">
+                              <DropdownMenuItem
+                                onClick={() => changeRole(u, u.role === "ADMIN" ? "USER" : "ADMIN")}
+                                className="cursor-pointer"
+                              >
                                 {u.role === "ADMIN" ? "Rebaixar p/ USER" : "Promover a ADMIN"}
                               </DropdownMenuItem>
                               <DropdownMenuSeparator />
                               {/* Ativar/Desativar */}
-                              <DropdownMenuItem onClick={() => toggleActive(u)} className="cursor-pointer">
+                              <DropdownMenuItem
+                                onClick={() => toggleActive(u)}
+                                className="cursor-pointer"
+                              >
                                 {u.isActive === false ? "Ativar" : "Desativar"}
                               </DropdownMenuItem>
                             </DropdownMenuContent>

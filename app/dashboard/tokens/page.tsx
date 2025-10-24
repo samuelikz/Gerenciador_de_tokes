@@ -33,14 +33,17 @@ import {
 } from "@tabler/icons-react";
 import TokenList from "@/components/TokenList";
 
+// --- Tipos ---
+type Role = "ADMIN" | "USER";
+
 type ApiToken = {
   id: string;
   userId: string;
   createdByUserId: string;
-  scope: string;
+  scope: "READ" | "WRITE" | "READ_WRITE" | string;
   isActive: boolean;
   expiresAt: string | null;
-  createdAt: string;
+  createdAt: string | null;
   revokedAt: string | null;
   description: string | null;
   createdByName: string | null;
@@ -67,10 +70,11 @@ type CreateResp = {
   apiKey?: string;
 } & ApiErrorShape;
 
+// --- Utils ---
 const isAtivo = (t: ApiToken) => !!(t.isActive && !t.revokedAt);
 const toMs = (d?: string | null) => (d ? new Date(d).getTime() : 0);
 
-// Usa FIM do dia (23:59:59.999Z) para aceitar “hoje”
+// Fim do dia UTC para aceitar “hoje”
 const toIsoZ = (dateStr?: string) => {
   if (!dateStr) return null;
   const d = new Date(`${dateStr}T23:59:59.999Z`);
@@ -103,33 +107,42 @@ function extractApiMessage(body: unknown): string | null {
 }
 
 export default function TokensPage() {
-  const role = useRole();
-  const isAdmin = role === "ADMIN"; // tabela
+  const role = useRole() as Role | undefined;
+  const isAdmin = role === "ADMIN";
 
-  const [query, setQuery] = React.useState("");
-  const [loading, setLoading] = React.useState(false);
+  const [query, setQuery] = React.useState<string>("");
   const [myTokens, setMyTokens] = React.useState<ApiToken[]>([]);
   const [othersTokens, setOthersTokens] = React.useState<ApiToken[]>([]);
-  const [loadingMine, setLoadingMine] = React.useState(false);
-  const [loadingOthers, setLoadingOthers] = React.useState(false); // criar
+  const [loadingMine, setLoadingMine] = React.useState<boolean>(false);
+  const [loadingOthers, setLoadingOthers] = React.useState<boolean>(false);
 
-  const [openCreate, setOpenCreate] = React.useState(false);
-  const [creating, setCreating] = React.useState(false);
-  const [scope, setScope] = React.useState<string>("READ");
+  const isRefreshing = loadingMine || loadingOthers;
+
+  const [openCreate, setOpenCreate] = React.useState<boolean>(false);
+  const [creating, setCreating] = React.useState<boolean>(false);
+  const [scope, setScope] = React.useState<"READ" | "WRITE" | "READ_WRITE" | string>("READ");
   const [expiresDate, setExpiresDate] = React.useState<string>("");
-  const [description, setDescription] = React.useState<string>(""); // resultado
+  const [description, setDescription] = React.useState<string>("");
 
-  const [openResult, setOpenResult] = React.useState(false);
+  const [openResult, setOpenResult] = React.useState<boolean>(false);
   const [apiKey, setApiKey] = React.useState<string>("");
   const [createdPayload, setCreatedPayload] = React.useState<{
     token: ApiToken;
     apiKey: string;
-  } | null>(null); // hoje (AAAA-MM-DD) para bloquear datas passadas no input
+  } | null>(null);
 
-  const todayStr = React.useMemo(
-    () => new Date().toISOString().slice(0, 10),
-    []
-  );
+  // hoje (AAAA-MM-DD) para bloquear datas passadas no input
+  const todayStr = React.useMemo(() => new Date().toISOString().slice(0, 10), []);
+
+  const normalizeTokens = React.useCallback((list: ApiToken[] | undefined): ApiToken[] => {
+    if (!Array.isArray(list)) return [];
+    return list.map((t) => ({
+      ...t,
+      createdAt: typeof t.createdAt === "string" ? t.createdAt : null,
+      expiresAt: typeof t.expiresAt === "string" ? t.expiresAt : null,
+      revokedAt: typeof t.revokedAt === "string" ? t.revokedAt : null,
+    }));
+  }, []);
 
   const load = React.useCallback(async () => {
     setLoadingMine(true);
@@ -142,105 +155,100 @@ export default function TokensPage() {
 
       if (!res.ok || body?.success === false) {
         throw new Error(extractApiMessage(body) ?? "Falha ao carregar tokens");
-      } // aceita { data } OU { items }
+      }
 
-      const list: ApiToken[] = Array.isArray(body?.data)
+      const list = Array.isArray(body?.data)
         ? body!.data!
         : Array.isArray(body?.items)
         ? body!.items!
-        : []; // normaliza campos de data para string|null
+        : [];
 
-      const norm = list.map((t) => ({
-        ...t,
-        createdAt: typeof t.createdAt === "string" ? t.createdAt : null,
-        expiresAt: typeof t.expiresAt === "string" ? t.expiresAt : null,
-        revokedAt: typeof t.revokedAt === "string" ? t.revokedAt : null,
-      })) as ApiToken[];
-      setMyTokens(norm);
+      setMyTokens(normalizeTokens(list));
     } catch (err: unknown) {
       toast.error(getErrorMessage(err, "Erro ao buscar tokens"));
     } finally {
       setLoadingMine(false);
     }
-  }, []);
+  }, [normalizeTokens]);
 
   const loadAll = React.useCallback(async () => {
     setLoadingOthers(true);
     try {
-      // 🛑 CORREÇÃO: Adicionando a barra final para tentar resolver o 307
+      // Barra final para evitar 307 em algumas configs
       const res = await fetch("/api/tokensall/", {
         method: "GET",
         cache: "no-store",
-        credentials: "include", // Necessário para cookies
+        credentials: "include",
       });
       const body = await readJson<ListResp>(res);
 
       if (!res.ok || body?.success === false) {
         throw new Error(extractApiMessage(body) ?? "Falha ao carregar tokens");
-      } // aceita { data } OU { items }
+      }
 
-      const list: ApiToken[] = Array.isArray(body?.data)
+      const list = Array.isArray(body?.data)
         ? body!.data!
         : Array.isArray(body?.items)
         ? body!.items!
-        : []; // normaliza campos de data para string|null
+        : [];
 
-      const norm = list.map((t) => ({
-        ...t,
-        createdAt: typeof t.createdAt === "string" ? t.createdAt : null,
-        expiresAt: typeof t.expiresAt === "string" ? t.expiresAt : null,
-        revokedAt: typeof t.revokedAt === "string" ? t.revokedAt : null,
-      })) as ApiToken[];
-      setOthersTokens(norm);
+      setOthersTokens(normalizeTokens(list));
     } catch (err: unknown) {
       toast.error(getErrorMessage(err, "Erro ao buscar tokens"));
     } finally {
       setLoadingOthers(false);
     }
-  }, []);
+  }, [normalizeTokens]);
 
   React.useEffect(() => {
-    load();
+    void load();
     if (isAdmin) {
-      loadAll();
+      void loadAll();
     }
-  }, [load, loadAll, isAdmin]); // Função unificada para aplicar a busca e ordenação
+  }, [load, loadAll, isAdmin]);
 
-  const applyFilterAndSort = (tokens: ApiToken[], query: string) => {
-    // Lógica de busca (do seu antigo 'filtered')
-    const q = query.trim().toLowerCase();
-    const filtered = q
-      ? tokens.filter(
-          (t) =>
-            (t.description ?? "").toLowerCase().includes(q) ||
-            (t.ownerEmail ?? "").toLowerCase().includes(q) ||
-            (t.ownerName ?? "").toLowerCase().includes(q) ||
-            (t.createdByName ?? "").toLowerCase().includes(q) ||
-            (t.createdByEmail ?? "").toLowerCase().includes(q) ||
-            (t.scope ?? "").toLowerCase().includes(q)
-        )
-      : tokens; // Lógica de ordenação (do seu 'filteredSorted')
+  // Busca + ordenação
+  const applyFilterAndSort = React.useCallback((tokens: ApiToken[], q: string) => {
+    const queryStr = q.trim().toLowerCase();
+
+    const filtered = queryStr
+      ? tokens.filter((t) => {
+          const fields = [
+            t.description ?? "",
+            t.ownerEmail ?? "",
+            t.ownerName ?? "",
+            t.createdByName ?? "",
+            t.createdByEmail ?? "",
+            t.scope ?? "",
+          ];
+          return fields.some((f) => f.toLowerCase().includes(queryStr));
+        })
+      : tokens;
 
     return [...filtered].sort((a, b) => {
       const aa = isAtivo(a) ? 1 : 0;
       const bb = isAtivo(b) ? 1 : 0;
       if (aa !== bb) return bb - aa;
+
       const ca = toMs(a.createdAt);
       const cb = toMs(b.createdAt);
       if (ca !== cb) return cb - ca;
+
       const ea = toMs(a.expiresAt);
       const eb = toMs(b.expiresAt);
       return ea - eb;
     });
-  }; 
+  }, []);
 
-  const finalMyTokens = React.useMemo(() => {
-    return applyFilterAndSort(myTokens, query);
-  }, [myTokens, query]);  
- 
-  const finalOthersTokens = React.useMemo(() => {
-    return applyFilterAndSort(othersTokens, query);
-  }, [othersTokens, query]);
+  const finalMyTokens = React.useMemo(
+    () => applyFilterAndSort(myTokens, query),
+    [myTokens, query, applyFilterAndSort]
+  );
+
+  const finalOthersTokens = React.useMemo(
+    () => applyFilterAndSort(othersTokens, query),
+    [othersTokens, query, applyFilterAndSort]
+  );
 
   const refreshAll = React.useCallback(async () => {
     await load();
@@ -267,19 +275,16 @@ export default function TokensPage() {
     }
   }
 
-  async function createToken(e: React.FormEvent) {
+  async function createToken(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
     try {
-      setCreating(true); // Validação: não permitir passado (se informado)
+      setCreating(true);
 
+      // Validação de data
       if (expiresDate) {
         const picked = new Date(`${expiresDate}T00:00:00`);
         const now = new Date();
-        const today = new Date(
-          now.getFullYear(),
-          now.getMonth(),
-          now.getDate()
-        );
+        const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
         if (picked < today) {
           toast.error("A data de expiração não pode ser no passado.");
           setCreating(false);
@@ -287,7 +292,7 @@ export default function TokensPage() {
         }
       }
 
-      const finalScope = isAdmin ? scope : "READ";
+      const finalScope: "READ" | "WRITE" | "READ_WRITE" | string = isAdmin ? scope : "READ";
       const payload = {
         scope: finalScope,
         expiresAt: toIsoZ(expiresDate),
@@ -301,9 +306,7 @@ export default function TokensPage() {
       });
       const body = await readJson<CreateResp>(res);
       if (!res.ok || !body) {
-        throw new Error(
-          extractApiMessage(body) ?? "Não foi possível criar o token"
-        );
+        throw new Error(extractApiMessage(body) ?? "Não foi possível criar o token");
       }
 
       const apiKeyFromData = body.data?.apiKey ?? body.apiKey ?? "";
@@ -311,9 +314,7 @@ export default function TokensPage() {
 
       setApiKey(String(apiKeyFromData || ""));
       setCreatedPayload(
-        tokenObj && apiKeyFromData
-          ? { token: tokenObj as ApiToken, apiKey: apiKeyFromData }
-          : null
+        tokenObj && apiKeyFromData ? { token: tokenObj as ApiToken, apiKey: apiKeyFromData } : null
       );
 
       setOpenCreate(false);
@@ -323,7 +324,7 @@ export default function TokensPage() {
       setExpiresDate("");
       setDescription("");
 
-      await refreshAll(); 
+      await refreshAll();
     } catch (err: unknown) {
       toast.error(getErrorMessage(err, "Erro ao criar token"));
     } finally {
@@ -333,26 +334,27 @@ export default function TokensPage() {
 
   function copyApiKey() {
     if (!apiKey) return;
-    navigator.clipboard.writeText(apiKey);
+    void navigator.clipboard.writeText(apiKey);
     toast.success("Chave copiada");
   }
 
   function downloadJson() {
     if (!createdPayload) return;
-    const content = JSON.stringify(createdPayload ?? {}, null, 2);
-    const blob = new Blob([content], {
-      type: "application/json;charset=utf-8",
-    });
+    const content = JSON.stringify(createdPayload, null, 2);
+    const blob = new Blob([content], { type: "application/json;charset=utf-8" });
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
     a.href = url;
-    const nameFromId = createdPayload?.token?.id
-      ? `token-${createdPayload.token.id}.json`
-      : "token.json";
+    const nameFromId = createdPayload.token?.id ? `token-${createdPayload.token.id}.json` : "token.json";
     a.download = nameFromId;
     a.click();
     URL.revokeObjectURL(url);
   }
+
+  // Handlers tipados para inputs
+  const onQueryChange = (e: React.ChangeEvent<HTMLInputElement>) => setQuery(e.target.value);
+  const onExpiresChange = (e: React.ChangeEvent<HTMLInputElement>) => setExpiresDate(e.target.value);
+  const onDescChange = (e: React.ChangeEvent<HTMLInputElement>) => setDescription(e.target.value);
 
   return (
     <div className="flex flex-col gap-6 px-4 lg:px-6">
@@ -365,19 +367,19 @@ export default function TokensPage() {
               className="pl-8 w-64"
               placeholder="Buscar por descrição, dono ou escopo…"
               value={query}
-              onChange={(e) => setQuery(e.target.value)}
+              onChange={onQueryChange}
             />
           </div>
+
           <Button
             variant="outline"
             size="icon"
             onClick={load}
-            disabled={loading}
+            disabled={isRefreshing}
             className="cursor-pointer"
+            aria-label="Recarregar"
           >
-            <IconReload
-              className={loading ? "size-4 animate-spin" : "size-4"}
-            />
+            <IconReload className={isRefreshing ? "size-4 animate-spin" : "size-4"} />
           </Button>
 
           {/* Dialog: criar token */}
@@ -398,7 +400,10 @@ export default function TokensPage() {
                   <Label htmlFor="scope">Escopo</Label>
 
                   {isAdmin ? (
-                    <Select value={scope} onValueChange={setScope}>
+                    <Select
+                      value={scope}
+                      onValueChange={(v) => setScope(v as "READ" | "WRITE" | "READ_WRITE" | string)}
+                    >
                       <SelectTrigger id="scope">
                         <SelectValue placeholder="Selecione o escopo" />
                       </SelectTrigger>
@@ -421,13 +426,15 @@ export default function TokensPage() {
                 </div>
 
                 <div className="grid gap-1.5">
-                  <Label htmlFor="expires">Expira em <span className="!text-red-400">*</span></Label>
+                  <Label htmlFor="expires">
+                    Expira em <span className="!text-red-400">*</span>
+                  </Label>
                   <Input
                     id="expires"
                     type="date"
                     value={expiresDate}
-                    min={todayStr} // impede selecionar passado
-                    onChange={(e) => setExpiresDate(e.target.value)}
+                    min={todayStr}
+                    onChange={onExpiresChange}
                   />
                 </div>
 
@@ -437,7 +444,7 @@ export default function TokensPage() {
                     id="desc"
                     placeholder="Ex.: Chave de leitura para integração X"
                     value={description}
-                    onChange={(e) => setDescription(e.target.value)}
+                    onChange={onDescChange}
                   />
                 </div>
 
@@ -450,11 +457,7 @@ export default function TokensPage() {
                   >
                     Cancelar
                   </Button>
-                  <Button
-                    type="submit"
-                    disabled={creating}
-                    className="cursor-pointer"
-                  >
+                  <Button type="submit" disabled={creating} className="cursor-pointer">
                     {creating ? "Criando..." : "Criar token"}
                   </Button>
                 </DialogFooter>
@@ -471,30 +474,19 @@ export default function TokensPage() {
 
               <div className="grid gap-3">
                 <p className="text-sm text-muted-foreground">
-                  Guarde esta chave com segurança. Ela pode ser exibida apenas
-                  agora.
+                  Guarde esta chave com segurança. Ela pode ser exibida apenas agora.
                 </p>
 
                 <div className="rounded-md border bg-muted/30 p-3">
-                  <code className="block w-full break-all text-sm">
-                    {apiKey || "—"}
-                  </code>
+                  <code className="block w-full break-all text-sm">{apiKey || "—"}</code>
                 </div>
 
                 <div className="flex gap-2">
-                  <Button
-                    variant="outline"
-                    onClick={copyApiKey}
-                    className="cursor-pointer"
-                  >
+                  <Button variant="outline" onClick={copyApiKey} className="cursor-pointer">
                     <IconClipboard className="mr-2 size-4" />
                     Copiar token
                   </Button>
-                  <Button
-                    variant="outline"
-                    onClick={downloadJson}
-                    className="cursor-pointer"
-                  >
+                  <Button variant="outline" onClick={downloadJson} className="cursor-pointer">
                     <IconDownload className="mr-2 size-4" />
                     Baixar JSON
                   </Button>
@@ -502,10 +494,7 @@ export default function TokensPage() {
               </div>
 
               <DialogFooter>
-                <Button
-                  onClick={() => setOpenResult(false)}
-                  className="cursor-pointer"
-                >
+                <Button onClick={() => setOpenResult(false)} className="cursor-pointer">
                   Fechar
                 </Button>
               </DialogFooter>
@@ -517,10 +506,9 @@ export default function TokensPage() {
       <Tabs defaultValue="tokensCreateForMe" className="w-full">
         <TabsList>
           <TabsTrigger value="tokensCreateForMe">Gerados por mim</TabsTrigger>
-          <TabsTrigger value="tokensCreateforOthers">
-            Gerado por outros
-          </TabsTrigger>
+          <TabsTrigger value="tokensCreateforOthers">Gerado por outros</TabsTrigger>
         </TabsList>
+
         <TabsContent value="tokensCreateForMe">
           <Card>
             <CardHeader className="pb-2">
@@ -528,25 +516,19 @@ export default function TokensPage() {
             </CardHeader>
             <CardContent>
               <div className="overflow-hidden rounded-md border">
-                <TokenList
-                  tokens={finalMyTokens}
-                  loading={loadingMine}
-                  revokeToken={revokeToken}
-                />
+                <TokenList tokens={finalMyTokens} loading={loadingMine} revokeToken={revokeToken} />
               </div>
             </CardContent>
           </Card>
         </TabsContent>
 
-                {isAdmin ? (
+        {isAdmin ? (
           <TabsContent value="tokensCreateforOthers">
             {othersTokens.length === 0 && !loadingOthers ? (
               <Card>
                 <CardContent>
                   <div className="p-6 text-center text-yellow-600 bg-yellow-50 rounded-md border border-yellow-200">
-                    <p className="font-medium">
-                      Nenhum token encontrado.
-                    </p>
+                    <p className="font-medium">Nenhum token encontrado.</p>
                     <p className="text-sm text-yellow-700 mt-1">
                       Nenhum token foi criado por outros usuários até o momento.
                     </p>
@@ -556,9 +538,7 @@ export default function TokensPage() {
             ) : (
               <Card>
                 <CardHeader className="pb-2">
-                  <CardTitle className="text-base">
-                    Tokens criados por outros usuários
-                  </CardTitle>
+                  <CardTitle className="text-base">Tokens criados por outros usuários</CardTitle>
                 </CardHeader>
                 <CardContent>
                   <div className="overflow-hidden rounded-md border">
@@ -576,15 +556,11 @@ export default function TokensPage() {
           <TabsContent value="tokensCreateforOthers">
             <Card>
               <CardHeader className="pb-2">
-                <CardTitle className="text-base text-center">
-                  Acesso Negado
-                </CardTitle>
+                <CardTitle className="text-base text-center">Acesso Negado</CardTitle>
               </CardHeader>
               <CardContent>
                 <div className="p-4 text-center text-red-500 bg-red-100 rounded-md">
-                  <h2>
-                    Apenas administradores podem visualizar tokens gerados por outros.
-                  </h2>
+                  <h2>Apenas administradores podem visualizar tokens gerados por outros.</h2>
                   <p className="mt-2 text-sm text-red-700">
                     Essa aba está desativada para sua função usuários comuns.
                   </p>

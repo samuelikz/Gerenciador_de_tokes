@@ -7,21 +7,41 @@ import { SidebarTrigger } from "@/components/ui/sidebar";
 
 // --- TIPOS ---
 type Role = "ADMIN" | "USER";
-type UserData = { id: string | number; email?: string; role?: Role; name?: string; avatar?: string | null; };
+
+type UserData = {
+  id: string | number;
+  email?: string;
+  role?: Role;
+  name?: string;
+  avatar?: string | null;
+};
+
 type MiniUser = { name?: string; email?: string; role?: string };
-type MeResponse = | { success: true; data: UserData } | { success: false; message: string };
+
+type MeResponse =
+  | { success: true; data: UserData }
+  | { success: false; message: string };
 
 interface SiteHeaderProps extends React.ComponentProps<"header"> {
   user?: MiniUser | null;
 }
 
-function RoleBadge({ role }: { role?: string }) {
+function RoleBadge({ role }: { role?: Role | string }) {
   if (!role) return null;
   return (
     <span className="rounded-full border px-2 py-0.5 text-[10px] font-medium leading-none text-muted-foreground">
       {role}
     </span>
   );
+}
+
+// util para parse seguro de JSON
+async function readJson<T>(res: Response): Promise<T | null> {
+  try {
+    return (await res.json()) as T;
+  } catch {
+    return null;
+  }
 }
 
 export function SiteHeader({ user: userProp, className, ...props }: SiteHeaderProps) {
@@ -32,47 +52,47 @@ export function SiteHeader({ user: userProp, className, ...props }: SiteHeaderPr
     let mounted = true;
 
     (async () => {
-      // 🛑 LÓGICA DE PROPS SIMPLIFICADA
-      if (userProp && userProp.name) { // Se o nome vier da prop, usa e pula o fetch
-        setMe({
-          id: "from-props",
-          email: userProp.email ?? "",
-          name: userProp.name,
-          role: userProp.role as Role,
-          avatar: null,
-        } as UserData);
-        setLoading(false);
+      // Se veio user pelas props, usa e evita o fetch
+      if (userProp?.name) {
+        const roleFromProps = (userProp.role as Role | undefined) ?? undefined;
+        if (mounted) {
+          setMe({
+            id: "from-props",
+            email: userProp.email ?? "",
+            name: userProp.name,
+            role: roleFromProps,
+            avatar: null,
+          });
+          setLoading(false);
+        }
         return;
       }
-      
+
       try {
         setLoading(true);
-        
-        // Chamada Direta ao Proxy Seguro (lê o cookie HTTP-Only)
-        const res = await fetch(`/api/users/me/profile`, { 
+
+        const res = await fetch(`/api/users/me/profile`, {
           credentials: "include",
           cache: "no-store",
         });
-        
-        const json = (await res.json().catch(() => ({}))) as MeResponse;
+
+        const json = (await readJson<MeResponse>(res)) ?? { success: false, message: "" };
 
         if (!mounted) return;
 
-        if (json && "success" in json && json.success) {
+        if ("success" in json && json.success) {
           const d = json.data;
-          
           setMe({
             id: d.id,
             email: d.email,
-            role: d.role as Role, 
+            role: d.role,
             name: d.name ?? (d.email ? d.email.split("@")[0] : undefined),
             avatar: d.avatar ?? null,
           });
-
         } else {
-          setMe(null); // Falha de autenticação ou JSON malformado
+          setMe(null);
         }
-      } catch (e) {
+      } catch {
         if (!mounted) return;
         setMe(null);
       } finally {
@@ -83,12 +103,15 @@ export function SiteHeader({ user: userProp, className, ...props }: SiteHeaderPr
     return () => {
       mounted = false;
     };
-  }, [userProp]); // Mantido [userProp] por segurança se o dado puder mudar
+  }, [userProp]);
 
-  const u = me; 
-  
-  // O valor do estado 'me' é setado APÓS a Promise ser resolvida.
-  const displayName = u?.name ?? (u?.email ? u.email.split("@")[0] : "Usuário");
+  const u = me;
+
+  const displayName = React.useMemo(() => {
+    if (u?.name) return u.name;
+    if (u?.email) return u.email.split("@")[0] || "Usuário";
+    return "Usuário";
+  }, [u?.name, u?.email]);
 
   return (
     <header

@@ -1,14 +1,9 @@
 "use client";
 
 import * as React from "react";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
-import {
-  IconCreditCard,
-  IconDotsVertical,
-  IconLogout,
-  IconNotification,
-  IconUserCircle,
-} from "@tabler/icons-react";
+import { IconDotsVertical, IconLogout, IconUserCircle } from "@tabler/icons-react";
 
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import {
@@ -27,21 +22,21 @@ import {
   useSidebar,
 } from "@/components/ui/sidebar";
 
-export function NavUser({
-  user,
-}: {
+type NavUserProps = {
   user: {
     name: string;
     email: string;
     avatar: string;
   };
-}) {
+};
+
+export function NavUser({ user }: NavUserProps) {
   const { isMobile } = useSidebar();
   const router = useRouter();
   const [loading, setLoading] = React.useState(false);
 
   const initials = React.useMemo(() => {
-    const i =
+    const ini =
       user.name
         ?.trim()
         .split(/\s+/)
@@ -50,16 +45,17 @@ export function NavUser({
         .join("") ||
       user.email?.[0]?.toUpperCase() ||
       "U";
-    return i || "U";
+    return ini || "U";
   }, [user.name, user.email]);
 
   async function handleLogout() {
     try {
       setLoading(true);
-      await fetch("/api/auth/logout", { method: "POST" });
+      await fetch("/api/auth/logout", { method: "POST", credentials: "include" });
       router.replace("/login");
       router.refresh();
     } catch {
+      // fallback duro caso SPA não consiga navegar
       window.location.href = "/login";
     } finally {
       setLoading(false);
@@ -74,20 +70,17 @@ export function NavUser({
             <SidebarMenuButton
               size="lg"
               className="data-[state=open]:bg-sidebar-accent data-[state=open]:text-sidebar-accent-foreground"
+              aria-label="Abrir menu do usuário"
             >
               <Avatar className="h-8 w-8 rounded-lg grayscale">
                 <AvatarImage src={user.avatar} alt={user.name || "Avatar"} />
-                <AvatarFallback className="rounded-lg">
-                  {initials}
-                </AvatarFallback>
+                <AvatarFallback className="rounded-lg">{initials}</AvatarFallback>
               </Avatar>
               <div className="grid flex-1 text-left text-sm leading-tight">
                 <span className="truncate font-medium">{user.name}</span>
-                <span className="text-muted-foreground truncate text-xs">
-                  {user.email}
-                </span>
+                <span className="text-muted-foreground truncate text-xs">{user.email}</span>
               </div>
-              <IconDotsVertical className="ml-auto size-4" />
+              <IconDotsVertical className="ml-auto size-4" aria-hidden />
             </SidebarMenuButton>
           </DropdownMenuTrigger>
 
@@ -101,15 +94,11 @@ export function NavUser({
               <div className="flex items-center gap-2 px-1 py-1.5 text-left text-sm">
                 <Avatar className="h-8 w-8 rounded-lg">
                   <AvatarImage src={user.avatar} alt={user.name || "Avatar"} />
-                  <AvatarFallback className="rounded-lg">
-                    {initials}
-                  </AvatarFallback>
+                  <AvatarFallback className="rounded-lg">{initials}</AvatarFallback>
                 </Avatar>
                 <div className="grid flex-1 text-left text-sm leading-tight">
                   <span className="truncate font-medium">{user.name}</span>
-                  <span className="text-muted-foreground truncate text-xs">
-                    {user.email}
-                  </span>
+                  <span className="text-muted-foreground truncate text-xs">{user.email}</span>
                 </div>
               </div>
             </DropdownMenuLabel>
@@ -117,11 +106,11 @@ export function NavUser({
             <DropdownMenuSeparator />
 
             <DropdownMenuGroup>
-              <DropdownMenuItem>
-                <IconUserCircle />
-                <a href="/dashboard/perfil">
+              <DropdownMenuItem asChild>
+                <Link href="/dashboard/perfil" className="cursor-pointer">
+                  <IconUserCircle />
                   <span>Minha Conta</span>
-                </a>
+                </Link>
               </DropdownMenuItem>
             </DropdownMenuGroup>
 

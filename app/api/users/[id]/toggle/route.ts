@@ -10,11 +10,11 @@ const AUTH_COOKIE = process.env.AUTH_COOKIE_NAME || "accessToken";
 
 export async function PATCH(
   req: NextRequest,
-  context: { params: Promise<{ id: string }> }
+  { params }: { params: Promise<{ id: string }> }
 ) {
-  const { id } = await context.params;
+  const { id } = await params;
 
-  const token = (await cookies()).get(AUTH_COOKIE)?.value;
+  const token = (await cookies()).get(AUTH_COOKIE)?.value; // cookies() é síncrono
   if (!token) {
     return NextResponse.json(
       { success: false, error: { message: "Não autenticado" } },
@@ -32,11 +32,11 @@ export async function PATCH(
         Authorization: `Bearer ${token}`,
         "Content-Type": "application/json",
       },
-      redirect: "manual", 
+      redirect: "manual",
       body: JSON.stringify(body),
     });
 
-
+    // evita seguir 30x e facilita debugar rota incorreta
     if (resp.status === 307 || resp.status === 302) {
       return NextResponse.json(
         {
@@ -49,22 +49,28 @@ export async function PATCH(
       );
     }
 
-    let jsonResponse: any = {};
+    // Parse robusto do corpo
+    const raw = await resp.text().catch(() => "");
+    let parsed: unknown = null;
     try {
-      jsonResponse = await resp.json();
+      parsed = raw ? JSON.parse(raw) : null;
     } catch {
+      parsed = { raw };
     }
+
+    const dataObj = parsed as Record<string, unknown> | null;
 
     return NextResponse.json(
       {
         success: resp.ok,
-        data: jsonResponse?.data ?? jsonResponse?.user ?? jsonResponse,
+        data: dataObj?.data ?? dataObj?.user ?? dataObj,
       },
       { status: resp.status }
     );
-  } catch (error) {
+  } catch (err) {
+    const message = err instanceof Error ? err.message : "Erro de rede ou proxy.";
     return NextResponse.json(
-      { success: false, error: { message: "Erro de rede ou proxy." } },
+      { success: false, error: { message } },
       { status: 500 }
     );
   }
